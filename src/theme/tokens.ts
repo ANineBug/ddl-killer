@@ -39,6 +39,39 @@ export const theme: Theme = {
   courseHues: ['#8fa3b8', '#9bb0a0', '#c4a389', '#a99bb8', '#c2b58f'],
 };
 
+// 背景色调随时间极慢地漂移：清晨偏冷偏亮，傍晚偏暖，深夜更沉。
+// 都在暮色范围内，文字对比度不受影响；每分钟只变一点，用的时候察觉不到。
+const tintKeyframes: { hour: number; bg: [string, string, string] }[] = [
+  { hour: 2, bg: ['#212436', '#2b293b', '#353040'] },
+  { hour: 7, bg: ['#2b3244', '#36394c', '#41404f'] },
+  { hour: 12, bg: ['#2d3043', '#393649', '#463e4c'] },
+  { hour: 17.5, bg: ['#2c2e40', '#3d3448', '#4f3e4b'] },
+  { hour: 22, bg: ['#25283b', '#302d41', '#3c3445'] },
+];
+
+function mixHex(a: string, b: string, t: number) {
+  const pa = parseInt(a.slice(1), 16);
+  const pb = parseInt(b.slice(1), 16);
+  const ch = (shift: number) => Math.round(((pa >> shift) & 255) * (1 - t) + ((pb >> shift) & 255) * t);
+  return `#${((ch(16) << 16) | (ch(8) << 8) | ch(0)).toString(16).padStart(6, '0')}`;
+}
+
+export function backdropAt(date: Date): string[] {
+  const h = date.getHours() + date.getMinutes() / 60;
+  const n = tintKeyframes.length;
+  for (let i = 0; i < n; i++) {
+    const from = tintKeyframes[i];
+    const to = tintKeyframes[(i + 1) % n];
+    const end = to.hour > from.hour ? to.hour : to.hour + 24;
+    const hh = h < from.hour ? h + 24 : h;
+    if (hh >= from.hour && hh < end) {
+      const t = (hh - from.hour) / (end - from.hour);
+      return from.bg.map((c, k) => mixHex(c, to.bg[k], t));
+    }
+  }
+  return theme.bg;
+}
+
 export type Phase = 'day' | 'dusk' | 'night';
 
 // 首页标题随时间换一句话：16:30 前是白天，16:30–19:00 是傍晚，之后到早上 6:00 是夜晚

@@ -1,8 +1,10 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
-import { ComponentProps } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { ComponentProps, useRef } from 'react';
+import { Animated, Platform, StyleSheet, View } from 'react-native';
 
+import { haptic } from '@/components/haptic';
+import { useToast } from '@/components/Toast';
 import { Card, closeModal, ModalScreen, Press, PrimaryButton, Txt } from '@/components/ui';
 import { formatAgo, formatDue, formatRemaining, isUrgent } from '@/data/format';
 import { useStore } from '@/data/store';
@@ -10,7 +12,7 @@ import { ReactionKey } from '@/data/types';
 import { useTheme } from '@/theme/useTheme';
 
 const reactions: { key: ReactionKey; emoji: string; label?: string }[] = [
-  { key: 'confirm', emoji: '✅', label: '我也收到了' },
+  { key: 'confirm', emoji: '✅', label: '对的对的' },
   { key: 'thumbs', emoji: '👍' },
   { key: 'cry', emoji: '😭' },
 ];
@@ -19,6 +21,7 @@ export default function HomeworkDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { theme } = useTheme();
   const { homework, courseById, toggleDone, toggleReaction } = useStore();
+  const toast = useToast();
   const item = homework.find((h) => h.id === id);
 
   if (!item) {
@@ -39,7 +42,10 @@ export default function HomeworkDetail() {
           label={item.done ? '已完成 · 点击撤销' : '标记为已完成'}
           onPress={() => {
             toggleDone(item.id);
-            if (!item.done) closeModal();
+            if (item.done) return;
+            haptic.success();
+            closeModal();
+            toast(`「${item.title}」已完成`, { label: '撤销', onPress: () => toggleDone(item.id) });
           }}
         />
       }>
@@ -88,33 +94,67 @@ export default function HomeworkDetail() {
       )}
 
       <View style={styles.reactions}>
-        {reactions.map((r) => {
-          const mine = item.myReactions.includes(r.key);
-          return (
-            <Press
-              key={r.key}
-              onPress={() => toggleReaction(item.id, r.key)}
-              style={[
-                styles.reaction,
-                { borderColor: mine ? theme.accent : theme.line, backgroundColor: mine ? theme.accentSoft : 'transparent' },
-              ]}>
-              <Txt variant="sub">{r.emoji}</Txt>
-              {r.label && (
-                <Txt variant="sub" tone={mine ? 'accent' : 'sub'}>
-                  {r.label}
-                </Txt>
-              )}
-              <Txt variant="sub" tone={mine ? 'accent' : 'sub'} style={{ fontWeight: '600' }}>
-                {item.reactions[r.key]}
-              </Txt>
-            </Press>
-          );
-        })}
+        {reactions.map((r) => (
+          <ReactionChip
+            key={r.key}
+            emoji={r.emoji}
+            label={r.label}
+            count={item.reactions[r.key]}
+            mine={item.myReactions.includes(r.key)}
+            onPress={() => toggleReaction(item.id, r.key)}
+          />
+        ))}
       </View>
       <Txt variant="caption" tone="faint" style={{ marginTop: 10 }}>
         确认的同学越多，这条作业越可信
       </Txt>
     </ModalScreen>
+  );
+}
+
+// 点一下轻轻弹起来，像 Discord 的表情回应
+function ReactionChip({
+  emoji,
+  label,
+  count,
+  mine,
+  onPress,
+}: {
+  emoji: string;
+  label?: string;
+  count: number;
+  mine: boolean;
+  onPress: () => void;
+}) {
+  const { theme } = useTheme();
+  const scale = useRef(new Animated.Value(1)).current;
+
+  function press() {
+    haptic.select();
+    onPress();
+    scale.setValue(mine ? 0.92 : 1.18);
+    Animated.spring(scale, { toValue: 1, friction: 4, tension: 160, useNativeDriver: Platform.OS !== 'web' }).start();
+  }
+
+  return (
+    <Animated.View style={{ transform: [{ scale }] }}>
+      <Press
+        onPress={press}
+        style={[
+          styles.reaction,
+          { borderColor: mine ? theme.accent : theme.line, backgroundColor: mine ? theme.accentSoft : 'transparent' },
+        ]}>
+        <Txt variant="sub">{emoji}</Txt>
+        {label && (
+          <Txt variant="sub" tone={mine ? 'accent' : 'sub'}>
+            {label}
+          </Txt>
+        )}
+        <Txt variant="sub" tone={mine ? 'accent' : 'sub'} style={{ fontWeight: '600' }}>
+          {count}
+        </Txt>
+      </Press>
+    </Animated.View>
   );
 }
 

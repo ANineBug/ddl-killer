@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
-import { ReactNode } from 'react';
+import { ReactNode, useEffect, useState } from 'react';
 import {
   Pressable,
   PressableProps,
@@ -18,21 +18,24 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useTheme } from '@/theme/useTheme';
-import { fonts } from '@/theme/tokens';
+import { backdropAt, fonts } from '@/theme/tokens';
 
+// 暮色渐变背景，色调每分钟跟着时间微调一次
 export function Backdrop() {
-  const { theme } = useTheme();
-  if (theme.bg.length > 1) {
-    return (
-      <LinearGradient
-        colors={theme.bg as [string, string, ...string[]]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 0.6, y: 1 }}
-        style={StyleSheet.absoluteFill}
-      />
-    );
-  }
-  return <View style={[StyleSheet.absoluteFill, { backgroundColor: theme.bg[0] }]} />;
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 60000);
+    return () => clearInterval(id);
+  }, []);
+  const colors = backdropAt(now);
+  return (
+    <LinearGradient
+      colors={colors as [string, string, ...string[]]}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 0.6, y: 1 }}
+      style={StyleSheet.absoluteFill}
+    />
+  );
 }
 
 export function Card({ children, style }: { children: ReactNode; style?: StyleProp<ViewStyle> }) {
