@@ -1,9 +1,9 @@
 import { Ionicons } from '@expo/vector-icons';
 import { BlurTargetView, BlurView } from 'expo-blur';
-import { usePathname } from 'expo-router';
+import { router, usePathname } from 'expo-router';
 import { TabList, Tabs, TabSlot, TabTrigger, TabTriggerSlotProps } from 'expo-router/ui';
-import { ComponentProps, ComponentRef, Ref, RefObject, useEffect, useRef } from 'react';
-import { Animated, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ComponentProps, ComponentRef, Ref, RefObject, useEffect, useMemo, useRef } from 'react';
+import { Animated, PanResponder, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { haptic } from '@/components/haptic';
@@ -19,10 +19,13 @@ const tabs: { name: string; href: '/' | '/timetable' | '/me'; label: string; ico
 
 export default function TabsLayout() {
   const blurTarget = useRef<ComponentRef<typeof View> | null>(null);
+  const swipe = useSwipeTabs();
   return (
     <Tabs style={{ flex: 1 }}>
       <BlurTargetView ref={blurTarget} style={{ flex: 1 }}>
-        <TabSlot style={{ flex: 1 }} />
+        <Animated.View {...swipe.handlers} style={{ flex: 1, transform: [{ translateX: swipe.drag }] }}>
+          <TabSlot style={{ flex: 1 }} />
+        </Animated.View>
       </BlurTargetView>
       <TabBar blurTarget={blurTarget} />
       <TabList style={{ display: 'none' }}>
@@ -32,6 +35,55 @@ export default function TabsLayout() {
       </TabList>
     </Tabs>
   );
+}
+
+// 左右滑动切换标签：页面先跟着手指轻轻动，滑得够远或够快就切到相邻页面，
+// 新页面由 TabScreen 从滑动方向滑进来；明显偏上下的滑动留给页面滚动
+function useSwipeTabs() {
+  const pathname = usePathname();
+  const index = Math.max(
+    0,
+    tabs.findIndex((t) => t.href === pathname),
+  );
+  const indexRef = useRef(index);
+  indexRef.current = index;
+  const drag = useRef(new Animated.Value(0)).current;
+  // 一次滑动最多切一页；网页上同一次松手可能被处理两次
+  const switchedRef = useRef(false);
+
+  const responder = useMemo(() => {
+    const settle = () =>
+      Animated.spring(drag, { toValue: 0, friction: 9, tension: 120, useNativeDriver: Platform.OS !== 'web' }).start();
+    return PanResponder.create({
+      onMoveShouldSetPanResponderCapture: (_, g) => Math.abs(g.dx) > 14 && Math.abs(g.dx) > Math.abs(g.dy) * 2,
+      onPanResponderTerminationRequest: () => false,
+      onPanResponderGrant: () => {
+        switchedRef.current = false;
+      },
+      onPanResponderMove: (_, g) => {
+        const i = indexRef.current;
+        // 已经是第一页还往右滑、或最后一页还往左滑时，只给一点阻力感
+        const atEdge = (g.dx > 0 && i === 0) || (g.dx < 0 && i === tabs.length - 1);
+        drag.setValue(g.dx * (atEdge ? 0.12 : 0.35));
+      },
+      onPanResponderRelease: (_, g) => {
+        if (switchedRef.current) return;
+        const next = indexRef.current + (g.dx < 0 ? 1 : -1);
+        const farEnough = Math.abs(g.dx) > 70 || (Math.abs(g.vx) > 0.5 && Math.abs(g.dx) > 25);
+        if (farEnough && next >= 0 && next < tabs.length) {
+          switchedRef.current = true;
+          haptic.select();
+          drag.setValue(0);
+          router.navigate(tabs[next].href);
+        } else {
+          settle();
+        }
+      },
+      onPanResponderTerminate: settle,
+    });
+  }, [drag]);
+
+  return { drag, handlers: responder.panHandlers };
 }
 
 // 底部悬浮的胶囊标签栏，背后是毛玻璃；选中项下面有一块底色跟着滑过去

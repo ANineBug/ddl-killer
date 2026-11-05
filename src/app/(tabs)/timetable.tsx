@@ -19,6 +19,13 @@ const ROW = 46;
 const TIME_COL = 22;
 const PAD = 20;
 const MAX_W = 480;
+const BLOCK_FONT_SCALE = 1.2;
+
+// "通博楼 B101" 只取教室号 "B101"；短色块里教室号比楼名更有用
+function roomOf(location: string) {
+  const space = location.indexOf(' ');
+  return space > 0 ? location.slice(space + 1) : location;
+}
 
 function inWeek(c: Course, week: number) {
   const { from, to, rule } = c.weeks;
@@ -146,15 +153,33 @@ export default function TimetableScreen() {
                             borderLeftColor: hue,
                           },
                         ]}>
+                        {/* 按色块高度决定显示多少：一节只放课名，两节加地点，三节以上再加老师。
+                            手机系统字体调大时文字会跟着放大，限制倍数免得撑破色块 */}
                         <View>
-                          <Txt style={{ fontSize: 11.5, fontWeight: '600', lineHeight: 15 }}>{c.name}</Txt>
-                          <Txt variant="caption" tone="sub" style={{ fontSize: 10, marginTop: 3 }} numberOfLines={2}>
-                            {s.location}
+                          <Txt
+                            maxFontSizeMultiplier={BLOCK_FONT_SCALE}
+                            numberOfLines={span === 1 ? 1 : 3}
+                            style={{ fontSize: 11.5, fontWeight: '600' }}>
+                            {c.name}
                           </Txt>
+                          {span >= 2 && (
+                            <Txt
+                              variant="caption"
+                              tone="sub"
+                              maxFontSizeMultiplier={BLOCK_FONT_SCALE}
+                              numberOfLines={span >= 3 ? 2 : 1}
+                              style={{ fontSize: 10, marginTop: 3 }}>
+                              {span >= 3 ? s.location : roomOf(s.location)}
+                            </Txt>
+                          )}
                         </View>
-                        {/* 两节以上的色块，底部放老师，不让下半截空着 */}
-                        {span >= 2 && (
-                          <Txt variant="caption" tone="sub" style={{ fontSize: 9.5, opacity: 0.8 }} numberOfLines={1}>
+                        {span >= 3 && (
+                          <Txt
+                            variant="caption"
+                            tone="sub"
+                            maxFontSizeMultiplier={BLOCK_FONT_SCALE}
+                            numberOfLines={1}
+                            style={{ fontSize: 9.5, opacity: 0.8 }}>
                             {c.teacher}
                           </Txt>
                         )}
