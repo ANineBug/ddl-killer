@@ -29,7 +29,7 @@ export const mockCourses: Course[] = [
     id: 'micro',
     name: '中级微观经济学',
     teacher: '李老师',
-    sessions: [{ weekday: 2, from: 3, to: 5, location: '格致楼 C205' }],
+    sessions: [{ weekday: 2, from: 3, to: 5, location: '通博楼 C205' }],
     weeks: { from: 1, to: 16, rule: 'all' },
     hue: 1,
     members: 62,

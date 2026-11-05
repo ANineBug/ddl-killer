@@ -6,7 +6,7 @@ import { weekdayNames } from '@/data/format';
 import { useStore } from '@/data/store';
 import { Weekday, WeekRule } from '@/data/types';
 
-const buildings = ['通博楼', '格致楼', '弘远楼', '实验楼', '其他'];
+const buildings = ['通博楼', '弘远楼', '实验楼', '其他'];
 const weekPresets = [
   { label: '1-16 周', from: 1, to: 16 },
   { label: '1-8 周', from: 1, to: 8 },

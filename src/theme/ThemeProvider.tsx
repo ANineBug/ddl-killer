@@ -19,6 +19,8 @@ type ThemeContextValue = {
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
 
+// 主题过渡方式：fade 全屏一起渐变，sweep 从上往下揭开
+const TRANSITION: 'fade' | 'sweep' = 'fade';
 const SWEEP_MS = 3000;
 const REVEAL_PAUSE_MS = 1000;
 const IDLE_MS = 4000;
@@ -160,7 +162,16 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
         onTouchStart={() => (lastTouchRef.current = Date.now())}>
         {children}
       </View>
-      {snapshot && (
+      {snapshot && TRANSITION === 'fade' && (
+        <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+          <Animated.Image
+            source={{ uri: snapshot.uri }}
+            onLoad={startSweep}
+            style={{ width, height, opacity: sweep.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }) }}
+          />
+        </View>
+      )}
+      {snapshot && TRANSITION === 'sweep' && (
         <View pointerEvents="none" style={StyleSheet.absoluteFill}>
           <Animated.View
             style={[styles.oldScreen, { height: height + BAND, transform: [{ translateY: edge }] }]}>
