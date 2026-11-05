@@ -26,6 +26,9 @@ export type SubmitMethod = '纸质' | '学习通' | '邮箱' | '其他';
 
 export type ReactionKey = 'confirm' | 'thumbs' | 'cry';
 
+// 提醒：截止前多少分钟，或者某个具体时间
+export type Reminder = { kind: 'before'; minutes: number } | { kind: 'at'; at: Date };
+
 export type Homework = {
   id: string;
   courseId: string;
@@ -39,6 +42,8 @@ export type Homework = {
   myReactions: ReactionKey[];
   done: boolean;
   hasPhoto: boolean;
+  // 没设置就跟随默认提醒（截止前 1 天、3 小时）
+  reminders?: Reminder[];
 };
 
 export type Profile = {

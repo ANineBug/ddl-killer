@@ -4,6 +4,7 @@ import { ComponentProps, useRef } from 'react';
 import { Animated, Platform, StyleSheet, View } from 'react-native';
 
 import { haptic } from '@/components/haptic';
+import { ReminderCard } from '@/components/ReminderCard';
 import { useToast } from '@/components/Toast';
 import { Card, closeModal, ModalScreen, Press, PrimaryButton, Txt } from '@/components/ui';
 import { formatAgo, formatDue, formatRemaining, isUrgent } from '@/data/format';
@@ -74,6 +75,8 @@ export default function HomeworkDetail() {
         <InfoRow icon="location-outline" label="上课地点" value={course?.sessions[0]?.location ?? '—'} />
         <InfoRow icon="person-outline" label="上传" value={`${item.uploader} · ${formatAgo(item.uploadedAt)}`} last />
       </Card>
+
+      {!item.done && <ReminderCard item={item} />}
 
       {item.detail ? (
         <Card style={{ marginTop: 14, padding: 16 }}>

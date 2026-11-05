@@ -1,7 +1,7 @@
 import { createContext, ReactNode, useCallback, useContext, useMemo, useState } from 'react';
 
 import { mockCourses, mockHomework } from './mock';
-import { Course, Homework, Profile, ReactionKey } from './types';
+import { Course, Homework, Profile, ReactionKey, Reminder } from './types';
 
 type NewHomework = Pick<Homework, 'courseId' | 'title' | 'detail' | 'due' | 'submit' | 'hasPhoto'>;
 type NewCourse = Omit<Course, 'id' | 'hue' | 'members'>;
@@ -13,6 +13,8 @@ type StoreValue = {
   courseById: (id: string) => Course | undefined;
   toggleDone: (id: string) => void;
   toggleReaction: (id: string, key: ReactionKey) => void;
+  // 传 undefined 表示恢复默认提醒
+  setReminders: (id: string, reminders: Reminder[] | undefined) => void;
   addHomework: (h: NewHomework) => Homework;
   addCourse: (c: NewCourse) => { course: Course; matched: boolean };
   setProfile: (p: Partial<Profile>) => void;
@@ -46,6 +48,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         };
       }),
     );
+  }, []);
+
+  const setReminders = useCallback((id: string, reminders: Reminder[] | undefined) => {
+    setHomework((list) => list.map((h) => (h.id === id ? { ...h, reminders } : h)));
   }, []);
 
   const addHomework = useCallback(
@@ -85,8 +91,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const setProfile = useCallback((p: Partial<Profile>) => setProfileState((prev) => ({ ...prev, ...p })), []);
 
   const value = useMemo(
-    () => ({ courses, homework, profile, courseById, toggleDone, toggleReaction, addHomework, addCourse, setProfile }),
-    [courses, homework, profile, courseById, toggleDone, toggleReaction, addHomework, addCourse, setProfile],
+    () => ({ courses, homework, profile, courseById, toggleDone, toggleReaction, setReminders, addHomework, addCourse, setProfile }),
+    [courses, homework, profile, courseById, toggleDone, toggleReaction, setReminders, addHomework, addCourse, setProfile],
   );
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;

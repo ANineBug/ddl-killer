@@ -216,6 +216,9 @@ function HomeworkRow({ item, last }: { item: Homework; last: boolean }) {
           </Txt>
         </View>
         <View style={styles.meta}>
+          {item.reminders && !item.done && (
+            <Ionicons name="notifications" size={12} color={theme.accent} style={{ marginRight: 8 }} />
+          )}
           <Ionicons name="checkmark-done" size={13} color={theme.faint} />
           <Txt variant="caption" tone="faint" style={{ marginLeft: 3 }}>
             {item.reactions.confirm}
