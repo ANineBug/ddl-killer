@@ -9,11 +9,11 @@ const THEME_KEY = 'theme.name';
 
 type ThemeContextValue = { theme: Theme; name: ThemeName; setName: (name: ThemeName) => void };
 
-const ThemeContext = createContext<ThemeContextValue>({ theme: themes.dusk, name: 'dusk', setName: () => {} });
+const ThemeContext = createContext<ThemeContextValue>({ theme: themes.paper, name: 'paper', setName: () => {} });
 
 // 用户在"我的 → 外观"里选的主题，选了就记住；切换时直接换，不做动画
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [name, setNameState] = useState<ThemeName>('dusk');
+  const [name, setNameState] = useState<ThemeName>('paper');
   const [ready, setReady] = useState(false);
 
   useEffect(() => {

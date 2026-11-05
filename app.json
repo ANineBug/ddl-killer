@@ -5,7 +5,7 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "dark",
+    "userInterfaceStyle": "light",
     "ios": {
       "supportsTablet": true
     },
@@ -31,6 +31,6 @@
     "experiments": {
       "typedRoutes": true
     },
-    "backgroundColor": "#2c2e40"
+    "backgroundColor": "#faf9f5"
   }
 }
