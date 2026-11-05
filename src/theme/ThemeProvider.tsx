@@ -38,30 +38,50 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   const sweep = useRef(new Animated.Value(0)).current;
   const phaseRef = useRef<Phase | null>(null);
   const busyRef = useRef(false);
+  // 动画进行中又要求切换时，记下最新的目标，等这一段放完再切过去
+  const pendingRef = useRef<Phase | null>(null);
+  const goToRef = useRef<(target: Phase) => void>(() => {});
   const lastTouchRef = useRef(0);
   const holdsRef = useRef(0);
 
   phaseRef.current = phase;
 
-  // 截下当前画面盖在最上面，底下换成新主题，再把截图从上往下揭开
-  const goTo = useCallback(async (target: Phase) => {
-    if (busyRef.current || phaseRef.current === target) return;
-    busyRef.current = true;
-    try {
-      const uri = await captureRef(rootRef, {
-        format: 'png',
-        quality: 1,
-        result: Platform.OS === 'web' ? 'data-uri' : 'tmpfile',
-      });
-      setSnapshot({ uri, target });
-    } catch {
-      setPhase(target);
-      busyRef.current = false;
-    }
+  const finish = useCallback(() => {
+    busyRef.current = false;
+    const next = pendingRef.current;
+    pendingRef.current = null;
+    if (next && next !== phaseRef.current) goToRef.current(next);
   }, []);
+
+  // 截下当前画面盖在最上面，底下换成新主题，再把截图从上往下揭开
+  const goTo = useCallback(
+    async (target: Phase) => {
+      if (busyRef.current) {
+        pendingRef.current = target;
+        return;
+      }
+      if (phaseRef.current === target) return;
+      busyRef.current = true;
+      try {
+        const uri = await captureRef(rootRef, {
+          format: 'png',
+          quality: 1,
+          result: Platform.OS === 'web' ? 'data-uri' : 'tmpfile',
+        });
+        setSnapshot({ uri, target });
+      } catch {
+        phaseRef.current = target;
+        setPhase(target);
+        finish();
+      }
+    },
+    [finish],
+  );
+  goToRef.current = goTo;
 
   const startSweep = useCallback(() => {
     if (!snapshot) return;
+    phaseRef.current = snapshot.target;
     setPhase(snapshot.target);
     sweep.setValue(0);
     Animated.timing(sweep, {
@@ -71,9 +91,9 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
       useNativeDriver: Platform.OS !== 'web',
     }).start(() => {
       setSnapshot(null);
-      busyRef.current = false;
+      finish();
     });
-  }, [snapshot, sweep]);
+  }, [snapshot, sweep, finish]);
 
   // 启动时先显示上次看到的主题，停顿一下再揭晓现在的主题
   useEffect(() => {
