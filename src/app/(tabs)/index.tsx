@@ -8,8 +8,8 @@ import { Card, Press, Section, Txt } from '@/components/ui';
 import { dayDiff, formatDue, formatToday, isUrgent } from '@/data/format';
 import { useStore } from '@/data/store';
 import { Homework } from '@/data/types';
-import { useTheme } from '@/theme/ThemeProvider';
-import { greeting } from '@/theme/tokens';
+import { useTheme } from '@/theme/useTheme';
+import { greeting, phaseAt } from '@/theme/tokens';
 
 const groups = [
   { title: '今天', test: (d: number) => d <= 0 },
@@ -39,7 +39,7 @@ export default function HomeworkScreen() {
             {formatToday()}
           </Txt>
           <Txt variant="display" style={{ marginTop: 4 }}>
-            {greeting[theme.phase]}
+            {greeting[phaseAt(new Date())]}
           </Txt>
         </View>
         <Press onPress={() => router.push('/upload')} style={[styles.add, { borderColor: theme.line }]}>

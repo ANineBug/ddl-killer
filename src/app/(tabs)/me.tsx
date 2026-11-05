@@ -3,20 +3,13 @@ import { useState } from 'react';
 import { Platform, ScrollView, StyleSheet, Switch, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { Card, Chip, Press, Section, Txt } from '@/components/ui';
+import { Card, Press, Section, Txt } from '@/components/ui';
 import { useStore } from '@/data/store';
-import { ThemeMode, useTheme } from '@/theme/ThemeProvider';
-import { fonts, phaseName } from '@/theme/tokens';
-
-const modes: { label: string; value: ThemeMode }[] = [
-  { label: '按时间', value: 'auto' },
-  { label: '白天', value: 'day' },
-  { label: '傍晚', value: 'dusk' },
-  { label: '夜晚', value: 'night' },
-];
+import { fonts } from '@/theme/tokens';
+import { useTheme } from '@/theme/useTheme';
 
 export default function MeScreen() {
-  const { theme, mode, setMode } = useTheme();
+  const { theme } = useTheme();
   const { profile, setProfile, homework } = useStore();
   const insets = useSafeAreaInsets();
   const [editing, setEditing] = useState(false);
@@ -77,19 +70,6 @@ export default function MeScreen() {
         <Stat value={uploaded} label="我上传的" />
         <Stat value={confirmed} label="我确认的" />
       </View>
-
-      <Section title="外观">
-        <Card style={{ padding: 16 }}>
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-            {modes.map((m) => (
-              <Chip key={m.value} label={m.label} active={mode === m.value} onPress={() => setMode(m.value)} />
-            ))}
-          </View>
-          <Txt variant="caption" tone="sub" style={{ marginTop: 12, lineHeight: 18 }}>
-            现在是{phaseName[theme.phase]}。按时间：白天 6:00–16:30，傍晚 16:30–19:00，夜晚 19:00–6:00。切换时画面会从上往下慢慢变过去。
-          </Txt>
-        </Card>
-      </Section>
 
       <Section title="提醒">
         <Card>

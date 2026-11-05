@@ -8,7 +8,7 @@ import { Press, Txt } from '@/components/ui';
 import { currentWeek, isoWeekday } from '@/data/format';
 import { useStore } from '@/data/store';
 import { Course } from '@/data/types';
-import { useTheme } from '@/theme/ThemeProvider';
+import { useTheme } from '@/theme/useTheme';
 import { withAlpha } from '@/theme/tokens';
 
 const DAYS = ['一', '二', '三', '四', '五'];

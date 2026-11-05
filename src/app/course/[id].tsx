@@ -4,7 +4,7 @@ import { StyleSheet, View } from 'react-native';
 import { Card, ModalScreen, Press, Section, Txt } from '@/components/ui';
 import { formatDue, formatSession, formatWeeks, isUrgent } from '@/data/format';
 import { useStore } from '@/data/store';
-import { useTheme } from '@/theme/ThemeProvider';
+import { useTheme } from '@/theme/useTheme';
 
 export default function CourseDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();

@@ -7,7 +7,7 @@ import { Card, closeModal, ModalScreen, Press, PrimaryButton, Txt } from '@/comp
 import { formatAgo, formatDue, formatRemaining, isUrgent } from '@/data/format';
 import { useStore } from '@/data/store';
 import { ReactionKey } from '@/data/types';
-import { useTheme } from '@/theme/ThemeProvider';
+import { useTheme } from '@/theme/useTheme';
 
 const reactions: { key: ReactionKey; emoji: string; label?: string }[] = [
   { key: 'confirm', emoji: '✅', label: '我也收到了' },

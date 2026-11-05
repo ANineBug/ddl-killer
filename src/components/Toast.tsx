@@ -2,7 +2,7 @@ import { createContext, ReactNode, useCallback, useContext, useRef, useState } f
 import { Animated, StyleSheet, Text } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { useTheme } from '@/theme/ThemeProvider';
+import { useTheme } from '@/theme/useTheme';
 
 const ToastContext = createContext<(message: string) => void>(() => {});
 

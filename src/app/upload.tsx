@@ -7,7 +7,7 @@ import { Chip, ChipGroup, closeModal, Field, ModalScreen, Press, PrimaryButton, 
 import { isoWeekday, weekdayNames } from '@/data/format';
 import { useStore } from '@/data/store';
 import { SubmitMethod } from '@/data/types';
-import { useTheme } from '@/theme/ThemeProvider';
+import { useTheme } from '@/theme/useTheme';
 
 const times = ['08:00', '12:00', '18:00', '23:59'];
 const methods: SubmitMethod[] = ['纸质', '学习通', '邮箱', '其他'];

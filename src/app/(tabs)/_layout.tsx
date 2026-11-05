@@ -5,7 +5,7 @@ import { ComponentProps, ComponentRef, Ref, RefObject, useRef } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { useTheme } from '@/theme/ThemeProvider';
+import { useTheme } from '@/theme/useTheme';
 
 type IconName = ComponentProps<typeof Ionicons>['name'];
 
