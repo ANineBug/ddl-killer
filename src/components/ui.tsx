@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
-import { ReactNode } from 'react';
+import { ComponentRef, ReactNode, useRef } from 'react';
 import {
   Pressable,
   PressableProps,
@@ -17,7 +17,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { useHoldThemeSwitch, useTheme } from '@/theme/ThemeProvider';
+import { useHoldThemeSwitch, useRegisterCard, useTheme } from '@/theme/ThemeProvider';
 import { fonts } from '@/theme/tokens';
 
 export function Backdrop() {
@@ -37,8 +37,12 @@ export function Backdrop() {
 
 export function Card({ children, style }: { children: ReactNode; style?: StyleProp<ViewStyle> }) {
   const { theme } = useTheme();
+  const ref = useRef<ComponentRef<typeof View>>(null);
+  useRegisterCard(ref);
   return (
     <View
+      ref={ref}
+      collapsable={false}
       style={[
         styles.card,
         { backgroundColor: theme.card, borderColor: theme.cardEdge, borderWidth: theme.glass ? StyleSheet.hairlineWidth : 0 },
