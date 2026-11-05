@@ -21,7 +21,7 @@ const PAD = 20;
 const MAX_W = 480;
 const BLOCK_FONT_SCALE = 1.2;
 
-// "通博楼 B101" 只取教室号 "B101"；短色块里教室号比楼名更有用
+// "通博楼 B101" 只取教室号 "B101"；色块空间有限，统一只放教室号，完整地点在课程详情里
 function roomOf(location: string) {
   const space = location.indexOf(' ');
   return space > 0 ? location.slice(space + 1) : location;
@@ -153,13 +153,13 @@ export default function TimetableScreen() {
                             borderLeftColor: hue,
                           },
                         ]}>
-                        {/* 按色块高度决定显示多少：一节只放课名，两节加地点，三节以上再加老师。
+                        {/* 按色块高度决定显示多少：一节只放课名，两节加教室号，三节以上再加老师。
                             手机系统字体调大时文字会跟着放大，限制倍数免得撑破色块 */}
                         <View>
                           <Txt
                             maxFontSizeMultiplier={BLOCK_FONT_SCALE}
                             numberOfLines={span === 1 ? 1 : 3}
-                            style={{ fontSize: 11.5, fontWeight: '600' }}>
+                            style={{ fontSize: 11.5, lineHeight: 15, fontWeight: '600' }}>
                             {c.name}
                           </Txt>
                           {span >= 2 && (
@@ -167,9 +167,9 @@ export default function TimetableScreen() {
                               variant="caption"
                               tone="sub"
                               maxFontSizeMultiplier={BLOCK_FONT_SCALE}
-                              numberOfLines={span >= 3 ? 2 : 1}
-                              style={{ fontSize: 10, marginTop: 3 }}>
-                              {span >= 3 ? s.location : roomOf(s.location)}
+                              numberOfLines={1}
+                              style={{ fontSize: 10, lineHeight: 13, marginTop: 3 }}>
+                              {roomOf(s.location)}
                             </Txt>
                           )}
                         </View>
@@ -179,7 +179,7 @@ export default function TimetableScreen() {
                             tone="sub"
                             maxFontSizeMultiplier={BLOCK_FONT_SCALE}
                             numberOfLines={1}
-                            style={{ fontSize: 9.5, opacity: 0.8 }}>
+                            style={{ fontSize: 9.5, lineHeight: 12, opacity: 0.8 }}>
                             {c.teacher}
                           </Txt>
                         )}
