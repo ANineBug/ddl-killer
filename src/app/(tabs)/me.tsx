@@ -3,10 +3,11 @@ import { useState } from 'react';
 import { Platform, ScrollView, StyleSheet, Switch, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { haptic } from '@/components/haptic';
 import { TabScreen } from '@/components/TabScreen';
 import { Card, Press, Section, Txt } from '@/components/ui';
 import { useStore } from '@/data/store';
-import { fonts } from '@/theme/tokens';
+import { fonts, ThemeName, themeNames, themes } from '@/theme/tokens';
 import { useTheme } from '@/theme/useTheme';
 
 export default function MeScreen() {
@@ -73,6 +74,14 @@ export default function MeScreen() {
           <Stat value={confirmed} label="我确认的" />
         </View>
 
+        <Section title="外观">
+          <View style={styles.themes}>
+            {(['dusk', 'paper'] as ThemeName[]).map((n) => (
+              <ThemeOption key={n} name={n} />
+            ))}
+          </View>
+        </Section>
+
         <Section title="提醒">
           <Card>
             <ToggleRow label="截止前 1 天提醒" value={remind.day} onChange={(v) => setRemind({ ...remind, day: v })} />
@@ -99,6 +108,38 @@ export default function MeScreen() {
         </Txt>
       </ScrollView>
     </TabScreen>
+  );
+}
+
+// 一张小样：用这个主题自己的颜色画一个缩小的作业卡片，看一眼就知道长什么样
+function ThemeOption({ name }: { name: ThemeName }) {
+  const { theme: current, name: currentName, setName } = useTheme();
+  const t = themes[name];
+  const active = currentName === name;
+  return (
+    <Press
+      onPress={() => {
+        if (active) return;
+        haptic.select();
+        setName(name);
+      }}
+      style={[styles.themeOption, { borderColor: active ? current.accent : current.line }]}>
+      <View style={[styles.swatch, { backgroundColor: t.bg[t.bg.length - 1] }]}>
+        <View style={[styles.swatchCard, { backgroundColor: t.dark ? '#3f3a4c' : t.card, borderColor: t.cardEdge }]}>
+          <View style={[styles.swatchDot, { borderColor: t.accent }]} />
+          <View style={{ flex: 1, gap: 4 }}>
+            <View style={[styles.swatchLine, { backgroundColor: t.text, width: '70%' }]} />
+            <View style={[styles.swatchLine, { backgroundColor: t.urgent, width: '45%', opacity: 0.8 }]} />
+          </View>
+        </View>
+      </View>
+      <View style={styles.themeLabel}>
+        <Txt variant="sub" tone={active ? 'text' : 'sub'} style={active && { fontWeight: '600' }}>
+          {themeNames[name]}
+        </Txt>
+        {active && <Ionicons name="checkmark-circle" size={16} color={current.accent} />}
+      </View>
+    </Press>
   );
 }
 
@@ -137,4 +178,18 @@ const styles = StyleSheet.create({
   stats: { flexDirection: 'row', gap: 10, marginTop: 12 },
   stat: { flex: 1, alignItems: 'center', paddingVertical: 14 },
   toggle: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 10, paddingHorizontal: 16 },
+  themes: { flexDirection: 'row', gap: 12 },
+  themeOption: { flex: 1, borderRadius: 18, borderWidth: 1.5, overflow: 'hidden' },
+  swatch: { height: 84, padding: 12, justifyContent: 'center' },
+  swatchCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    padding: 10,
+    borderRadius: 10,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  swatchDot: { width: 12, height: 12, borderRadius: 6, borderWidth: 1.5 },
+  swatchLine: { height: 5, borderRadius: 3 },
+  themeLabel: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, paddingVertical: 10 },
 });

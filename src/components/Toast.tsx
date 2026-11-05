@@ -49,7 +49,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
               transform: [{ translateY: anim.interpolate({ inputRange: [0, 1], outputRange: [16, 0] }) }],
             },
           ]}>
-          <Text style={{ color: '#1c1a24', fontSize: 14 }}>{toast.message}</Text>
+          <Text style={{ color: theme.onText, fontSize: 14 }}>{toast.message}</Text>
           {toast.action && (
             <Pressable
               hitSlop={10}
@@ -57,7 +57,9 @@ export function ToastProvider({ children }: { children: ReactNode }) {
                 toast.action?.onPress();
                 hide();
               }}>
-              <Text style={{ color: '#6a5f86', fontSize: 14, fontWeight: '700', marginLeft: 14 }}>{toast.action.label}</Text>
+              <Text style={{ color: theme.toastAction, fontSize: 14, fontWeight: '700', marginLeft: 14 }}>
+                {toast.action.label}
+              </Text>
             </Pressable>
           )}
         </Animated.View>

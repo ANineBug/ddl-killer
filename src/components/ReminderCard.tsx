@@ -195,7 +195,7 @@ export function ReminderCard({ item }: { item: Homework }) {
             <Press
               onPress={addCustom}
               style={[styles.addButton, { backgroundColor: timeOk(time) ? theme.text : theme.line }]}>
-              <Txt variant="label" style={{ color: timeOk(time) ? '#1c1a24' : theme.faint }}>
+              <Txt variant="label" style={{ color: timeOk(time) ? theme.onText : theme.faint }}>
                 添加
               </Txt>
             </Press>

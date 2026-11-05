@@ -17,27 +17,69 @@ export type Theme = {
   urgent: string;
   // 底部标签栏和输入框的底色
   surface: string;
-  // 课表色块的几种低饱和色
+  // 以正文色为底的按钮、提示条上的文字颜色
+  onText: string;
+  // 提示条里"撤销"按钮的颜色
+  toastAction: string;
+  // 课表的节次横线
+  grid: string;
+  // 课表色块的几种低饱和色，以及铺底的浓度
   courseHues: string[];
+  blockAlpha: number;
+  // 背景色调是否随时间微调
+  tintByTime: boolean;
 };
 
-// 固定使用傍晚的暮色主题：紫灰渐变背景、毛玻璃卡片
-export const theme: Theme = {
-  dark: true,
-  bg: ['#2c2e40', '#3b3448', '#4a3d4a'],
-  card: 'rgba(255,255,255,0.07)',
-  cardEdge: 'rgba(255,255,255,0.08)',
-  glass: true,
-  text: '#eeeaf2',
-  sub: '#a49eae',
-  faint: '#6f6879',
-  line: 'rgba(255,255,255,0.08)',
-  accent: '#a3b0c4',
-  accentSoft: 'rgba(163,176,196,0.16)',
-  urgent: '#f0a088',
-  surface: 'rgba(44,40,58,0.82)',
-  courseHues: ['#8fa3b8', '#9bb0a0', '#c4a389', '#a99bb8', '#c2b58f'],
+export type ThemeName = 'dusk' | 'paper';
+
+export const themes: Record<ThemeName, Theme> = {
+  // 暮色：紫灰渐变背景、毛玻璃卡片
+  dusk: {
+    dark: true,
+    bg: ['#2c2e40', '#3b3448', '#4a3d4a'],
+    card: 'rgba(255,255,255,0.07)',
+    cardEdge: 'rgba(255,255,255,0.08)',
+    glass: true,
+    text: '#eeeaf2',
+    sub: '#a49eae',
+    faint: '#6f6879',
+    line: 'rgba(255,255,255,0.08)',
+    accent: '#a3b0c4',
+    accentSoft: 'rgba(163,176,196,0.16)',
+    urgent: '#f0a088',
+    surface: 'rgba(44,40,58,0.82)',
+    onText: '#1c1a24',
+    toastAction: '#6a5f86',
+    grid: 'rgba(255,255,255,0.035)',
+    courseHues: ['#8fa3b8', '#9bb0a0', '#c4a389', '#a99bb8', '#c2b58f'],
+    blockAlpha: 0.26,
+    tintByTime: true,
+  },
+  // 纸页：暖白纸色、白卡片细边框、陶土色点缀，参考 Claude 界面的气质
+  paper: {
+    dark: false,
+    bg: ['#faf9f5'],
+    card: '#ffffff',
+    cardEdge: '#e8e5db',
+    glass: false,
+    text: '#1f1e1d',
+    sub: '#73716a',
+    faint: '#b6b3a9',
+    line: '#eeebe3',
+    accent: '#c2603e',
+    accentSoft: 'rgba(194,96,62,0.10)',
+    urgent: '#b03a22',
+    surface: 'rgba(250,249,245,0.9)',
+    onText: '#faf9f5',
+    toastAction: '#f0a787',
+    grid: 'rgba(31,30,29,0.05)',
+    courseHues: ['#7f95ab', '#86a08c', '#c08a68', '#9a8bb0', '#b5a372'],
+    blockAlpha: 0.16,
+    tintByTime: false,
+  },
 };
+
+export const themeNames: Record<ThemeName, string> = { dusk: '暮色', paper: '纸页' };
 
 // 背景色调随时间极慢地漂移：清晨偏冷偏亮，傍晚偏暖，深夜更沉。
 // 都在暮色范围内，文字对比度不受影响；每分钟只变一点，用的时候察觉不到。
@@ -69,7 +111,7 @@ export function backdropAt(date: Date): string[] {
       return from.bg.map((c, k) => mixHex(c, to.bg[k], t));
     }
   }
-  return theme.bg;
+  return themes.dusk.bg;
 }
 
 export type Phase = 'day' | 'dusk' | 'night';

@@ -125,7 +125,7 @@ export default function TimetableScreen() {
               )}
 
               {Array.from({ length: periods }, (_, i) => (
-                <View key={i} style={[styles.periodRow, { top: i * ROW, height: ROW }]}>
+                <View key={i} style={[styles.periodRow, { top: i * ROW, height: ROW, borderTopColor: theme.grid }]}>
                   <Txt variant="caption" tone="faint" style={{ width: TIME_COL }}>
                     {i + 1}
                   </Txt>
@@ -149,7 +149,7 @@ export default function TimetableScreen() {
                             top: (s.from - 1) * ROW + 2,
                             width: colW - 4,
                             height: span * ROW - 4,
-                            backgroundColor: withAlpha(hue, 0.26),
+                            backgroundColor: withAlpha(hue, theme.blockAlpha),
                             borderLeftColor: hue,
                           },
                         ]}>
@@ -211,7 +211,6 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: 'rgba(255,255,255,0.035)',
     paddingTop: 4,
   },
   block: {

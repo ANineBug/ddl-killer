@@ -20,14 +20,19 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/theme/useTheme';
 import { backdropAt, fonts } from '@/theme/tokens';
 
-// 暮色渐变背景，色调每分钟跟着时间微调一次
+// 主题背景；暮色主题的色调每分钟跟着时间微调一次
 export function Backdrop() {
+  const { theme } = useTheme();
   const [now, setNow] = useState(() => new Date());
   useEffect(() => {
+    if (!theme.tintByTime) return;
     const id = setInterval(() => setNow(new Date()), 60000);
     return () => clearInterval(id);
-  }, []);
-  const colors = backdropAt(now);
+  }, [theme.tintByTime]);
+  const colors = theme.tintByTime ? backdropAt(now) : theme.bg;
+  if (colors.length === 1) {
+    return <View style={[StyleSheet.absoluteFill, { backgroundColor: colors[0] }]} />;
+  }
   return (
     <LinearGradient
       colors={colors as [string, string, ...string[]]}
@@ -44,7 +49,11 @@ export function Card({ children, style }: { children: ReactNode; style?: StylePr
     <View
       style={[
         styles.card,
-        { backgroundColor: theme.card, borderColor: theme.cardEdge, borderWidth: theme.glass ? StyleSheet.hairlineWidth : 0 },
+        {
+          backgroundColor: theme.card,
+          borderColor: theme.cardEdge,
+          borderWidth: theme.cardEdge === 'transparent' ? 0 : StyleSheet.hairlineWidth,
+        },
         style,
       ]}>
       {children}
@@ -172,7 +181,7 @@ export function PrimaryButton({ label, onPress, disabled }: { label: string; onP
     <Press
       onPress={disabled ? undefined : onPress}
       style={[styles.primary, { backgroundColor: theme.text, opacity: disabled ? 0.3 : 1 }]}>
-      <Text style={{ color: theme.dark ? '#16161a' : '#ffffff', fontSize: 15, fontWeight: '600' }}>{label}</Text>
+      <Text style={{ color: theme.onText, fontSize: 15, fontWeight: '600' }}>{label}</Text>
     </Press>
   );
 }
