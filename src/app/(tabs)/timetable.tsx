@@ -13,7 +13,8 @@ import { Course } from '@/data/types';
 import { withAlpha } from '@/theme/tokens';
 import { useTheme } from '@/theme/useTheme';
 
-const PERIODS = 12;
+const MAX_PERIODS = 12;
+const MIN_PERIODS = 8;
 const ROW = 46;
 const TIME_COL = 22;
 const PAD = 20;
@@ -43,6 +44,11 @@ export default function TimetableScreen() {
   const colW = (gridW - TIME_COL) / days.length;
   const today = isoWeekday(new Date());
   const todayCol = week === currentWeek() ? days.indexOf(today) : -1;
+  // 只画到这周最晚有课的那一节，至少画到第 8 节，后面空着的不画
+  const periods = Math.min(
+    MAX_PERIODS,
+    Math.max(MIN_PERIODS, ...visible.flatMap((c) => c.sessions.map((s) => s.to))),
+  );
 
   // 翻周时，课表从翻动的方向滑进来
   function changeWeek(dir: 1 | -1) {
@@ -101,7 +107,7 @@ export default function TimetableScreen() {
               ))}
             </View>
 
-            <View style={{ height: PERIODS * ROW }}>
+            <View style={{ height: periods * ROW }}>
               {todayCol >= 0 && (
                 <View
                   style={[
@@ -111,8 +117,8 @@ export default function TimetableScreen() {
                 />
               )}
 
-              {Array.from({ length: PERIODS }, (_, i) => (
-                <View key={i} style={[styles.periodRow, { top: i * ROW, height: ROW, borderTopColor: theme.line }]}>
+              {Array.from({ length: periods }, (_, i) => (
+                <View key={i} style={[styles.periodRow, { top: i * ROW, height: ROW }]}>
                   <Txt variant="caption" tone="faint" style={{ width: TIME_COL }}>
                     {i + 1}
                   </Txt>
@@ -124,6 +130,7 @@ export default function TimetableScreen() {
                   .filter((s) => days.includes(s.weekday))
                   .map((s) => {
                     const hue = theme.courseHues[c.hue % theme.courseHues.length];
+                    const span = s.to - s.from + 1;
                     return (
                       <Press
                         key={`${c.id}-${s.weekday}-${s.from}`}
@@ -134,15 +141,23 @@ export default function TimetableScreen() {
                             left: TIME_COL + days.indexOf(s.weekday) * colW + 2,
                             top: (s.from - 1) * ROW + 2,
                             width: colW - 4,
-                            height: (s.to - s.from + 1) * ROW - 4,
+                            height: span * ROW - 4,
                             backgroundColor: withAlpha(hue, 0.26),
                             borderLeftColor: hue,
                           },
                         ]}>
-                        <Txt style={{ fontSize: 11.5, fontWeight: '600', lineHeight: 15 }}>{c.name}</Txt>
-                        <Txt variant="caption" tone="sub" style={{ fontSize: 10, marginTop: 3 }} numberOfLines={2}>
-                          {s.location}
-                        </Txt>
+                        <View>
+                          <Txt style={{ fontSize: 11.5, fontWeight: '600', lineHeight: 15 }}>{c.name}</Txt>
+                          <Txt variant="caption" tone="sub" style={{ fontSize: 10, marginTop: 3 }} numberOfLines={2}>
+                            {s.location}
+                          </Txt>
+                        </View>
+                        {/* 两节以上的色块，底部放老师，不让下半截空着 */}
+                        {span >= 2 && (
+                          <Txt variant="caption" tone="sub" style={{ fontSize: 9.5, opacity: 0.8 }} numberOfLines={1}>
+                            {c.teacher}
+                          </Txt>
+                        )}
                       </Press>
                     );
                   }),
@@ -165,6 +180,22 @@ const styles = StyleSheet.create({
   weekRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: 18, marginBottom: 14 },
   dayPill: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999 },
   todayCol: { position: 'absolute', top: 0, bottom: 0, borderRadius: 10 },
-  periodRow: { position: 'absolute', left: 0, right: 0, borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 4 },
-  block: { position: 'absolute', borderRadius: 8, borderLeftWidth: 3, paddingHorizontal: 5, paddingVertical: 5, overflow: 'hidden' },
+  // 横线淡到几乎看不见，只起对齐作用
+  periodRow: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: 'rgba(255,255,255,0.035)',
+    paddingTop: 4,
+  },
+  block: {
+    position: 'absolute',
+    borderRadius: 8,
+    borderLeftWidth: 3,
+    paddingHorizontal: 5,
+    paddingVertical: 5,
+    overflow: 'hidden',
+    justifyContent: 'space-between',
+  },
 });
