@@ -18,13 +18,15 @@ export function dayDiff(d: Date, from = new Date()) {
 // 1 = 周一 … 7 = 周日
 export const isoWeekday = (d: Date) => ((d.getDay() + 6) % 7) + 1;
 
-export function formatDue(d: Date) {
+// short：列表里空间小，一周以外的日期写成「11/15」，免得把「截止」挤掉
+export function formatDue(d: Date, short = false) {
   const diff = dayDiff(d);
   if (diff === 0) return `${d.getHours() >= 18 ? '今晚' : '今天'} ${hhmm(d)}`;
   if (diff === 1) return `明天 ${hhmm(d)}`;
   if (diff === -1) return `昨天 ${hhmm(d)}`;
   if (diff > 1 && diff < 7) return `${weekdayNames[isoWeekday(d)]} ${hhmm(d)}`;
-  return `${d.getMonth() + 1} 月 ${d.getDate()} 日 ${hhmm(d)}`;
+  const date = short ? `${d.getMonth() + 1}/${d.getDate()}` : `${d.getMonth() + 1} 月 ${d.getDate()} 日`;
+  return `${date} ${hhmm(d)}`;
 }
 
 export function formatRemaining(d: Date) {

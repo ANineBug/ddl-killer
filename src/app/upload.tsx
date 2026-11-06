@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { StyleSheet } from 'react-native';
 
 import { CalendarPicker } from '@/components/CalendarPicker';
+import { TimePicker } from '@/components/TimePicker';
 import { useToast } from '@/components/Toast';
 import { Chip, ChipGroup, closeModal, Field, ModalScreen, Press, PrimaryButton, Txt } from '@/components/ui';
 import { dayDiff, isoWeekday, weekdayNames } from '@/data/format';
@@ -38,6 +39,7 @@ export default function Upload() {
   const [date, setDate] = useState(() => dayFromToday(1));
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [time, setTime] = useState('23:59');
+  const [timeOpen, setTimeOpen] = useState(false);
   const [submit, setSubmit] = useState<SubmitMethod>('学习通');
   const [detail, setDetail] = useState('');
   const [hasPhoto, setHasPhoto] = useState(false);
@@ -46,6 +48,7 @@ export default function Upload() {
   const quickDays = nextDays();
   // 选的日期不在最近 7 天里，就是自定义的日期
   const customDate = dayDiff(date) > 6;
+  const customTime = !times.includes(time);
 
   function publish() {
     if (!courseId) return;
@@ -98,9 +101,19 @@ export default function Upload() {
       )}
       <ChipGroup label="截止时间">
         {times.map((t) => (
-          <Chip key={t} label={t} active={time === t} onPress={() => setTime(t)} />
+          <Chip
+            key={t}
+            label={t}
+            active={time === t}
+            onPress={() => {
+              setTime(t);
+              setTimeOpen(false);
+            }}
+          />
         ))}
+        <Chip label={customTime ? time : '自定义'} active={customTime || timeOpen} onPress={() => setTimeOpen((v) => !v)} />
       </ChipGroup>
+      {timeOpen && <TimePicker value={time} onChange={setTime} />}
 
       <ChipGroup label="提交方式">
         {methods.map((m) => (

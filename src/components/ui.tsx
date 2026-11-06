@@ -135,7 +135,7 @@ export function ModalScreen({ title, children, footer }: { title?: string; child
         {title ? <Txt variant="label">{title}</Txt> : null}
         <View style={styles.close} />
       </View>
-      <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 40 }} keyboardShouldPersistTaps="handled">
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: 20, paddingBottom: 40 }} keyboardShouldPersistTaps="handled">
         {children}
       </ScrollView>
       {footer ? <View style={{ padding: 20, paddingBottom: insets.bottom + 16 }}>{footer}</View> : null}

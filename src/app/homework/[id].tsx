@@ -4,6 +4,7 @@ import { ComponentProps, useRef } from 'react';
 import { Animated, Platform, StyleSheet, View } from 'react-native';
 
 import { haptic } from '@/components/haptic';
+import { ReactionIcon } from '@/components/ReactionIcon';
 import { ReminderCard } from '@/components/ReminderCard';
 import { useToast } from '@/components/Toast';
 import { Card, closeModal, ModalScreen, Press, PrimaryButton, Txt } from '@/components/ui';
@@ -12,11 +13,7 @@ import { useStore } from '@/data/store';
 import { ReactionKey } from '@/data/types';
 import { useTheme } from '@/theme/useTheme';
 
-const reactions: { key: ReactionKey; emoji: string; label?: string }[] = [
-  { key: 'confirm', emoji: '✅', label: '对的对的' },
-  { key: 'thumbs', emoji: '👍' },
-  { key: 'cry', emoji: '😭' },
-];
+const reactions: { key: ReactionKey; label?: string }[] = [{ key: 'confirm', label: '对的对的' }, { key: 'thumbs' }, { key: 'cry' }];
 
 export default function HomeworkDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -100,7 +97,7 @@ export default function HomeworkDetail() {
         {reactions.map((r) => (
           <ReactionChip
             key={r.key}
-            emoji={r.emoji}
+            kind={r.key}
             label={r.label}
             count={item.reactions[r.key]}
             mine={item.myReactions.includes(r.key)}
@@ -117,13 +114,13 @@ export default function HomeworkDetail() {
 
 // 点一下轻轻弹起来，像 Discord 的表情回应
 function ReactionChip({
-  emoji,
+  kind,
   label,
   count,
   mine,
   onPress,
 }: {
-  emoji: string;
+  kind: ReactionKey;
   label?: string;
   count: number;
   mine: boolean;
@@ -147,7 +144,7 @@ function ReactionChip({
           styles.reaction,
           { borderColor: mine ? theme.accent : theme.line, backgroundColor: mine ? theme.accentSoft : 'transparent' },
         ]}>
-        <Txt variant="sub">{emoji}</Txt>
+        <ReactionIcon kind={kind} active={mine} color={mine ? theme.accent : theme.sub} fill={mine ? theme.accentSoft : 'transparent'} />
         {label && (
           <Txt variant="sub" tone={mine ? 'accent' : 'sub'}>
             {label}

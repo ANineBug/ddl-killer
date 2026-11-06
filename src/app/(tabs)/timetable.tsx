@@ -13,8 +13,7 @@ import { Course } from '@/data/types';
 import { withAlpha } from '@/theme/tokens';
 import { useTheme } from '@/theme/useTheme';
 
-const MAX_PERIODS = 12;
-const MIN_PERIODS = 8;
+const PERIODS = 12;
 const ROW = 46;
 const TIME_COL = 22;
 const PAD = 20;
@@ -45,17 +44,14 @@ export default function TimetableScreen() {
   const fade = useRef(new Animated.Value(1)).current;
 
   const visible = courses.filter((c) => inWeek(c, week));
-  // 平时只显示周一到周五；有周末的课时才把周六、周日加进来
-  const days = [1, 2, 3, 4, 5, 6, 7].filter((d) => d <= 5 || visible.some((c) => c.sessions.some((s) => s.weekday === d)));
+  // 一周七天都显示，周末没课也留着位置
+  const days = [1, 2, 3, 4, 5, 6, 7];
   const gridW = Math.min(width - PAD * 2, MAX_W);
   const colW = (gridW - TIME_COL) / days.length;
   const today = isoWeekday(new Date());
   const todayCol = week === currentWeek() ? days.indexOf(today) : -1;
-  // 只画到这周最晚有课的那一节，至少画到第 8 节，后面空着的不画
-  const periods = Math.min(
-    MAX_PERIODS,
-    Math.max(MIN_PERIODS, ...visible.flatMap((c) => c.sessions.map((s) => s.to))),
-  );
+  // 1–12 节全部画出来
+  const periods = PERIODS;
 
   // 翻周时，课表从翻动的方向滑进来
   function changeWeek(dir: 1 | -1) {
@@ -71,7 +67,7 @@ export default function TimetableScreen() {
 
   return (
     <TabScreen index={1}>
-      <ScrollView contentContainerStyle={{ paddingTop: insets.top + 20, paddingHorizontal: PAD, paddingBottom: 130 }}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingTop: insets.top + 20, paddingHorizontal: PAD, paddingBottom: 130 }}>
         <View style={{ width: gridW, alignSelf: 'center' }}>
           <View style={styles.header}>
             <View>
@@ -138,6 +134,8 @@ export default function TimetableScreen() {
                   .map((s) => {
                     const hue = theme.courseHues[c.hue % theme.courseHues.length];
                     const span = s.to - s.from + 1;
+                    // 七天都显示后色块变窄，课名按色块高度能放几行就放几行
+                    const nameLines = span === 1 ? 1 : Math.floor((span * ROW - 14 - 16 - (span >= 3 ? 12 : 0)) / 15);
                     return (
                       <Press
                         key={`${c.id}-${s.weekday}-${s.from}`}
@@ -158,7 +156,7 @@ export default function TimetableScreen() {
                         <View>
                           <Txt
                             maxFontSizeMultiplier={BLOCK_FONT_SCALE}
-                            numberOfLines={span === 1 ? 1 : 3}
+                            numberOfLines={nameLines}
                             style={{ fontSize: 11.5, lineHeight: 15, fontWeight: '600' }}>
                             {c.name}
                           </Txt>
@@ -203,7 +201,7 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end' },
   round: { width: 42, height: 42, borderRadius: 21, borderWidth: 1, alignItems: 'center', justifyContent: 'center', marginBottom: 4 },
   weekRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: 18, marginBottom: 14 },
-  dayPill: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999 },
+  dayPill: { paddingHorizontal: 6, paddingVertical: 3, borderRadius: 999 },
   todayCol: { position: 'absolute', top: 0, bottom: 0, borderRadius: 10 },
   // 横线淡到几乎看不见，只起对齐作用
   periodRow: {
@@ -216,8 +214,8 @@ const styles = StyleSheet.create({
   block: {
     position: 'absolute',
     borderRadius: 8,
-    borderLeftWidth: 3,
-    paddingHorizontal: 5,
+    borderLeftWidth: 2.5,
+    paddingHorizontal: 3,
     paddingVertical: 5,
     overflow: 'hidden',
     justifyContent: 'space-between',

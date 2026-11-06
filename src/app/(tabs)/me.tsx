@@ -33,6 +33,7 @@ export default function MeScreen() {
   return (
     <TabScreen index={2}>
       <ScrollView
+        showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingTop: insets.top + 20, paddingHorizontal: 20, paddingBottom: 130 }}
         keyboardShouldPersistTaps="handled">
         <Txt variant="display">我的</Txt>

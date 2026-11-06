@@ -36,7 +36,7 @@ export default function HomeworkScreen() {
 
   return (
     <TabScreen index={0}>
-      <ScrollView contentContainerStyle={{ paddingTop: insets.top + 20, paddingHorizontal: 20, paddingBottom: 130 }}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingTop: insets.top + 20, paddingHorizontal: 20, paddingBottom: 130 }}>
         <View style={styles.header}>
           <View>
             <Txt variant="caption" tone="sub">
@@ -208,12 +208,15 @@ function HomeworkRow({ item, last }: { item: Homework; last: boolean }) {
               ]}
             />
           </Animated.View>
-          <Txt variant="caption" tone="sub" numberOfLines={1} style={{ marginTop: 3 }}>
-            {course?.name} ·{' '}
-            <Txt variant="caption" tone={urgent ? 'urgent' : 'sub'} style={urgent && { fontWeight: '700' }}>
-              {formatDue(item.due)} 截止
+          {/* 课名太长时只截课名，截止时间永远完整显示 */}
+          <View style={{ flexDirection: 'row', marginTop: 3 }}>
+            <Txt variant="caption" tone="sub" numberOfLines={1} style={{ flexShrink: 1 }}>
+              {course?.name} ·{' '}
             </Txt>
-          </Txt>
+            <Txt variant="caption" tone={urgent ? 'urgent' : 'sub'} numberOfLines={1} style={[{ flexShrink: 0 }, urgent && { fontWeight: '700' }]}>
+              {formatDue(item.due, true)} 截止
+            </Txt>
+          </View>
         </View>
         <View style={styles.meta}>
           {item.reminders && !item.done && (
