@@ -2,11 +2,12 @@ import { Ionicons } from '@expo/vector-icons';
 import { BlurTargetView, BlurView } from 'expo-blur';
 import { router, usePathname } from 'expo-router';
 import { TabList, Tabs, TabSlot, TabTrigger, TabTriggerSlotProps } from 'expo-router/ui';
-import { ComponentProps, ComponentRef, Ref, RefObject, useEffect, useMemo, useRef } from 'react';
-import { Animated, PanResponder, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ComponentProps, ComponentRef, Ref, RefObject, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
+import { Animated, Easing, PanResponder, Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { haptic } from '@/components/haptic';
+import { markSwipeNavigation } from '@/components/TabScreen';
 import { useTheme } from '@/theme/useTheme';
 
 type IconName = ComponentProps<typeof Ionicons>['name'];
@@ -19,13 +20,32 @@ const tabs: { name: string; href: '/' | '/timetable' | '/me'; label: string; ico
 
 export default function TabsLayout() {
   const blurTarget = useRef<ComponentRef<typeof View> | null>(null);
-  const swipe = useSwipeTabs();
+  const { width } = useWindowDimensions();
+  const pager = useSwipePager(width);
+  // 路由默认只在打开过某一页后才把它加载出来；滑动时要能看到旁边那页，所以一开始就把三页都预加载好
+  useEffect(() => {
+    tabs.forEach((t) => router.prefetch(t.href));
+  }, []);
   return (
     <Tabs style={{ flex: 1 }}>
       <BlurTargetView ref={blurTarget} style={{ flex: 1 }}>
-        <Animated.View {...swipe.handlers} style={{ flex: 1, transform: [{ translateX: swipe.drag }] }}>
-          <TabSlot style={{ flex: 1 }} />
-        </Animated.View>
+        <View {...pager.handlers} style={{ flex: 1, overflow: 'hidden' }}>
+          {/* 三页并排摆好：每页的位置 = 自己的序号 × 屏幕宽 + 整体的滑动距离 */}
+          <TabSlot
+            style={{ flex: 1 }}
+            detachInactiveScreens={false}
+            renderFn={(descriptor) => {
+              const i = Math.max(0, tabs.findIndex((t) => t.name === descriptor.route.name));
+              return (
+                <Animated.View
+                  key={descriptor.route.key}
+                  style={[StyleSheet.absoluteFill, { transform: [{ translateX: Animated.add(pager.x, i * width) }] }]}>
+                  {descriptor.render()}
+                </Animated.View>
+              );
+            }}
+          />
+        </View>
       </BlurTargetView>
       <TabBar blurTarget={blurTarget} />
       <TabList style={{ display: 'none' }}>
@@ -37,9 +57,9 @@ export default function TabsLayout() {
   );
 }
 
-// 左右滑动切换标签：页面先跟着手指轻轻动，滑得够远或够快就切到相邻页面，
-// 新页面由 TabScreen 从滑动方向滑进来；明显偏上下的滑动留给页面滚动
-function useSwipeTabs() {
+// 手指左右滑：三页连在一起跟着手指走，旁边那页同时滑进来，松手后滑到底或者弹回去。
+// 点底部标签切换时不走这里，直接跳到那一页，由 TabScreen 做淡入
+function useSwipePager(width: number) {
   const pathname = usePathname();
   const index = Math.max(
     0,
@@ -47,44 +67,72 @@ function useSwipeTabs() {
   );
   const indexRef = useRef(index);
   indexRef.current = index;
-  const drag = useRef(new Animated.Value(0)).current;
-  // 一次滑动最多切一页；网页上同一次松手可能被处理两次
-  const switchedRef = useRef(false);
+  const widthRef = useRef(width);
+  widthRef.current = width;
+  // 整排页面的横向位置；在第 i 页时是 -i × 屏幕宽
+  const x = useRef(new Animated.Value(-index * width)).current;
+  // 滑动切过去的那一页：位置已经由滑动动画带到了，不需要再跳
+  const swipedTo = useRef<number | null>(null);
+  // 网页上同一次松手可能触发两次，只处理第一次
+  const released = useRef(false);
+
+  useLayoutEffect(() => {
+    if (swipedTo.current === index) {
+      swipedTo.current = null;
+      return;
+    }
+    x.stopAnimation();
+    x.setValue(-index * width);
+  }, [index, width, x]);
 
   const responder = useMemo(() => {
-    const settle = () =>
-      Animated.spring(drag, { toValue: 0, friction: 9, tension: 120, useNativeDriver: Platform.OS !== 'web' }).start();
+    const native = Platform.OS !== 'web';
+    const base = () => -indexRef.current * widthRef.current;
+    const settle = () => Animated.spring(x, { toValue: base(), friction: 10, tension: 90, useNativeDriver: native }).start();
     return PanResponder.create({
-      onMoveShouldSetPanResponderCapture: (_, g) => Math.abs(g.dx) > 14 && Math.abs(g.dx) > Math.abs(g.dy) * 2,
+      onMoveShouldSetPanResponderCapture: (_, g) => Math.abs(g.dx) > 12 && Math.abs(g.dx) > Math.abs(g.dy) * 1.8,
       onPanResponderTerminationRequest: () => false,
       onPanResponderGrant: () => {
-        switchedRef.current = false;
+        released.current = false;
+        x.stopAnimation();
       },
       onPanResponderMove: (_, g) => {
         const i = indexRef.current;
-        // 已经是第一页还往右滑、或最后一页还往左滑时，只给一点阻力感
+        // 第一页再往右、最后一页再往左时，只给一点阻力感
         const atEdge = (g.dx > 0 && i === 0) || (g.dx < 0 && i === tabs.length - 1);
-        drag.setValue(g.dx * (atEdge ? 0.12 : 0.35));
+        x.setValue(base() + g.dx * (atEdge ? 0.2 : 1));
       },
       onPanResponderRelease: (_, g) => {
-        if (switchedRef.current) return;
+        if (released.current) return;
+        released.current = true;
         const next = indexRef.current + (g.dx < 0 ? 1 : -1);
-        const farEnough = Math.abs(g.dx) > 70 || (Math.abs(g.vx) > 0.5 && Math.abs(g.dx) > 25);
+        const farEnough = Math.abs(g.dx) > widthRef.current * 0.3 || (Math.abs(g.vx) > 0.4 && Math.abs(g.dx) > 20);
         if (farEnough && next >= 0 && next < tabs.length) {
-          switchedRef.current = true;
           haptic.select();
-          drag.setValue(0);
-          router.navigate(tabs[next].href);
+          swipedTo.current = next;
+          markSwipeNavigation();
+          // 底部的选中块马上跟过去；页面滑到位以后再真正切换路由。
+          // 如果滑动途中就切换，网页上重新渲染会打断这段动画
+          moveIndicator?.(next);
+          Animated.timing(x, {
+            toValue: -next * widthRef.current,
+            duration: 260,
+            easing: Easing.out(Easing.cubic),
+            useNativeDriver: native,
+          }).start(() => router.navigate(tabs[next].href));
         } else {
           settle();
         }
       },
       onPanResponderTerminate: settle,
     });
-  }, [drag]);
+  }, [x]);
 
-  return { drag, handlers: responder.panHandlers };
+  return { x, handlers: responder.panHandlers };
 }
+
+// 滑动松手时，让底部标签栏的选中块不用等页面切换完就先滑过去
+let moveIndicator: ((index: number) => void) | null = null;
 
 // 底部悬浮的胶囊标签栏，背后是毛玻璃；选中项下面有一块底色跟着滑过去
 function TabBar({ blurTarget }: { blurTarget: RefObject<ComponentRef<typeof View> | null> }) {
@@ -100,6 +148,14 @@ function TabBar({ blurTarget }: { blurTarget: RefObject<ComponentRef<typeof View
   useEffect(() => {
     Animated.spring(slide, { toValue: active, friction: 9, tension: 110, useNativeDriver: Platform.OS !== 'web' }).start();
   }, [active, slide]);
+
+  useEffect(() => {
+    moveIndicator = (i) =>
+      Animated.spring(slide, { toValue: i, friction: 9, tension: 110, useNativeDriver: Platform.OS !== 'web' }).start();
+    return () => {
+      moveIndicator = null;
+    };
+  }, [slide]);
 
   return (
     <View pointerEvents="box-none" style={[styles.barWrap, { bottom: insets.bottom + 14 }]}>
