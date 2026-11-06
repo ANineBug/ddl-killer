@@ -12,7 +12,7 @@ import { Backdrop, Card, Chip, closeModal, Field, Press, PrimaryButton, Txt } fr
 import { formatSession, formatWeeks } from '@/data/format';
 import { sameTeachingClass, sessionWeeks, validMonday } from '@/data/schedule';
 import { useStore } from '@/data/store';
-import { CAMPUS_ENTRY, captureVpnPrefix, grabScheduleScript, isSchedulePage, isSchoolPage, SCHEDULE_PATH, stageHint, VPN_ENTRY, VPN_PREFIX } from '@/lib/swufe/browser';
+import { CAMPUS_ENTRY, captureVpnPrefix, grabScheduleScript, isSchedulePage, parseBrowserMessage, SCHEDULE_PATH, stageHint, VPN_ENTRY, VPN_PREFIX } from '@/lib/swufe/browser';
 import { coursesFromApi, coursesFromHtml, type ScheduleResult } from '@/lib/swufe/parser';
 import { useTheme } from '@/theme/useTheme';
 
@@ -57,25 +57,22 @@ export default function SwufeImportScreen() {
   }
 
   function onMessage(raw: string, page: string) {
-    if (!isSchoolPage(page) || raw.length > 6 * 1024 * 1024) return;
-    let message: Record<string, unknown>;
-    try {
-      const parsed: unknown = JSON.parse(raw);
-      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return;
-      message = parsed as Record<string, unknown>;
-    } catch { return; }
-    if (typeof message.href !== 'string' || !isSchoolPage(message.href) || message.href !== page) return;
+    const message = parseBrowserMessage(raw, page);
+    if (!message) return;
     if (message.type === 'probe') {
-      setHref(page);
-      setReady(isSchedulePage(page) && message.hasTable === true);
-      const captured = captureVpnPrefix(page);
+      setHref(message.href);
+      setReady(isSchedulePage(message.href) && message.hasTable === true);
+      const captured = captureVpnPrefix(message.href);
       if (captured) prefix.current = captured;
       return;
     }
-    if (!request.current || message.requestId !== request.current || !isSchedulePage(page)) return;
+    if (!request.current || message.requestId !== request.current) return;
     cancelRead();
     if (message.type === 'error') { setError(typeof message.message === 'string' ? message.message : '读取失败，请重新查询'); return; }
-    if (message.type !== 'schedule') return;
+    if (message.type !== 'schedule' || !isSchedulePage(message.href)) {
+      setError('请打开“个人课表查询”并查询后再读取');
+      return;
+    }
     try {
       const result = message.source === 'api' && typeof message.term === 'string'
         ? coursesFromApi(message.data, message.term)
@@ -97,7 +94,8 @@ export default function SwufeImportScreen() {
   }
 
   function read() {
-    if (!ready || busy) return;
+    if (busy || request.current) return;
+    if (!browser.current) { setError('网页正在打开，请稍后重试'); return; }
     setError('');
     const id = `${Date.now()}-${session}`;
     request.current = id;
@@ -208,7 +206,7 @@ export default function SwufeImportScreen() {
           onNavigate={(page) => { cancelRead(); setHref(page); setReady(false); }}
           onHtml={(html) => { try { showPreview(coursesFromHtml(html)); } catch (e) { setError(e instanceof Error ? e.message : '课表解析失败'); } }} />
         {Platform.OS !== 'web' && <View style={{ padding: 16, paddingBottom: insets.bottom + 12 }}>
-          <PrimaryButton label={busy ? '正在读取…' : '读取课表并预览'} onPress={read} disabled={!ready || busy} />
+          <PrimaryButton label={busy ? '正在读取…' : '读取课表并预览'} onPress={read} disabled={busy} />
         </View>}
       </View>
     </View>

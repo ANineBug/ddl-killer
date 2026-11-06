@@ -12,6 +12,22 @@ export function isSchoolPage(href: string) {
   } catch { return false; }
 }
 
+export type BrowserMessage = Record<string, unknown> & { href: string };
+
+export function parseBrowserMessage(raw: string, source: string): BrowserMessage | null {
+  if (!isSchoolPage(source) || raw.length > 6 * 1024 * 1024) return null;
+  try {
+    const message: unknown = JSON.parse(raw);
+    if (!message || typeof message !== 'object' || Array.isArray(message)) return null;
+    const href = (message as Record<string, unknown>).href;
+    if (typeof href !== 'string' || !isSchoolPage(href)) return null;
+    // 安卓新版消息桥给的是 sourceOrigin（只有源），旧桥/iOS 可能给完整 URL。
+    // 验证真实消息源与页面同源，不能要求两者的完整 URL 相等。
+    if (new URL(href).origin !== new URL(source).origin) return null;
+    return message as BrowserMessage;
+  } catch { return null; }
+}
+
 export function isSchedulePage(href: string) {
   if (!isSchoolPage(href)) return false;
   const url = new URL(href);

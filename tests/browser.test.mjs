@@ -3,7 +3,7 @@ import vm from 'node:vm';
 import test from 'node:test';
 import { loadTs } from './load-ts.mjs';
 
-const { INSTALL_BRIDGE_JS, grabScheduleScript, isSchedulePage, isSchoolPage, captureVpnPrefix, VPN_PREFIX } = await loadTs('src/lib/swufe/browser.ts');
+const { INSTALL_BRIDGE_JS, grabScheduleScript, isSchedulePage, isSchoolPage, captureVpnPrefix, parseBrowserMessage, VPN_PREFIX } = await loadTs('src/lib/swufe/browser.ts');
 
 function context() {
   const messages = [];
@@ -85,4 +85,46 @@ test('重复注入不会给接口安装多层监听', () => {
   const send = c.XHR.prototype.send;
   vm.runInContext(INSTALL_BRIDGE_JS, c.ctx);
   assert.equal(c.XHR.prototype.send, send);
+});
+
+test('安卓 WebMessageListener 只回报 sourceOrigin 时，接受真实课表探针和读取结果', () => {
+  const c = context();
+  const href = VPN_PREFIX + '/kbcx/xskbcx_cxXskbcxIndex.html?gnmkdm=N2151&layout=default';
+  const probe = { type: 'probe', href, hasTable: true };
+  const accepted = parseBrowserMessage(JSON.stringify(probe), 'https://webvpn.swufe.edu.cn');
+  assert.deepEqual(accepted, probe);
+  assert.equal(isSchedulePage(accepted.href) && accepted.hasTable, true);
+  c.query().reply({ kbList: [{ jxb_id: 'class-A', kcmc: '课程' }] });
+  const response = c.read();
+  assert.equal(parseBrowserMessage(JSON.stringify(response), 'https://webvpn.swufe.edu.cn/').source, 'api');
+  assert.equal(parseBrowserMessage(JSON.stringify(response), 'https://webvpn.swufe.edu.cn/').requestId, 'request-A');
+});
+
+test('兼容旧版完整 URL 消息源及校内 HTTP，不把 origin 当作课表路径', () => {
+  const href = 'http://jwxt.swufe.edu.cn/kbcx/xskbcx_cxXskbcxIndex.html?gnmkdm=N2151';
+  const raw = JSON.stringify({ type: 'probe', href, hasTable: true });
+  for (const source of [href, 'http://jwxt.swufe.edu.cn', 'http://jwxt.swufe.edu.cn/']) {
+    assert.equal(parseBrowserMessage(raw, source).href, href);
+  }
+});
+
+test('同源判断仍拦截外站、跨学校子域、不同端口/协议、伪造凭据和无效消息', () => {
+  const href = VPN_PREFIX + '/kbcx/xskbcx_cxXskbcxIndex.html';
+  const raw = JSON.stringify({ type: 'probe', href, hasTable: true });
+  for (const source of ['https://webvpn.swufe.edu.cn.attacker.test', 'https://attacker.test',
+    'https://authserver.swufe.edu.cn', 'http://webvpn.swufe.edu.cn', 'https://webvpn.swufe.edu.cn:8443',
+    'https://user:password@webvpn.swufe.edu.cn']) assert.equal(parseBrowserMessage(raw, source), null);
+  for (const value of ['null', '[]', '{}', 'not-json', JSON.stringify({ href: 'https://attacker.test/' }),
+    JSON.stringify({ href: 'https://user:password@webvpn.swufe.edu.cn/' })]) {
+    assert.equal(parseBrowserMessage(value, 'https://webvpn.swufe.edu.cn'), null);
+  }
+});
+
+test('主动读取未就绪页面返回提示，安卓源形式的错误消息也能送达', () => {
+  const c = context();
+  c.table.querySelector = () => null;
+  const message = parseBrowserMessage(JSON.stringify(c.read()), 'https://webvpn.swufe.edu.cn');
+  assert.equal(message.type, 'error');
+  assert.match(message.message, /请先查询课表/);
+  assert.equal(message.requestId, 'request-A');
 });
