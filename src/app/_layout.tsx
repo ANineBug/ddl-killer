@@ -1,5 +1,6 @@
 import { DefaultTheme, Stack, ThemeProvider as NavigationThemeProvider } from 'expo-router';
 import { View } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { ToastProvider } from '@/components/Toast';
@@ -15,6 +16,8 @@ const navigationTheme = {
 
 export default function RootLayout() {
   return (
+    // 手势库要求最外层有这个根视图，左右翻页的手势才能和页面滚动协同
+    <GestureHandlerRootView style={{ flex: 1 }}>
     <SafeAreaProvider>
       <StoreProvider>
         <ThemeProvider>
@@ -35,5 +38,6 @@ export default function RootLayout() {
         </ThemeProvider>
       </StoreProvider>
     </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 }

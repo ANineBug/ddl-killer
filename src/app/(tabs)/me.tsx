@@ -1,10 +1,11 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useState } from 'react';
-import { Platform, ScrollView, StyleSheet, Switch, TextInput, View } from 'react-native';
+import { Platform, StyleSheet, Switch, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { haptic } from '@/components/haptic';
 import { TabScreen } from '@/components/TabScreen';
+import { TabScrollView } from '@/components/TabScroll';
 import { Card, Press, Section, Txt } from '@/components/ui';
 import { useStore } from '@/data/store';
 import { fonts, ThemeName, themeNames, themes } from '@/theme/tokens';
@@ -32,7 +33,7 @@ export default function MeScreen() {
 
   return (
     <TabScreen index={2}>
-      <ScrollView
+      <TabScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingTop: insets.top + 20, paddingHorizontal: 20, paddingBottom: 130 }}
         keyboardShouldPersistTaps="handled">
@@ -130,7 +131,7 @@ export default function MeScreen() {
             {confirmReset ? '再点一次，清空我的数据并恢复演示数据' : '恢复演示数据'}
           </Txt>
         </Press>
-      </ScrollView>
+      </TabScrollView>
     </TabScreen>
   );
 }
