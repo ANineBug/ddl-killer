@@ -37,14 +37,14 @@ export function ReactionIcon({ kind, color, fill, active, size = 18 }: {
     );
   }
 
-  // 哭脸：眯起来的眼睛、往下撇的嘴，两边各挂一滴眼泪
+  // 哭脸：圆点眼睛、往下撇的嘴，右脸挂一大滴眼泪。线条少，小尺寸下也一眼能认出来
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
       <Circle cx={12} cy={12} r={9.5} {...stroke} fill={active ? fill : 'none'} />
-      <Path d="M6.9 10.2q1.5-1.7 3 0M14.1 10.2q1.5-1.7 3 0" {...stroke} />
-      <Path d="M10.2 17.1q1.8-1.7 3.6 0" {...stroke} />
-      <Path d="M8.4 12.2c-.75 1.3-1.15 2.3-1.15 2.95a1.15 1.15 0 0 0 2.3 0c0-.65-.4-1.65-1.15-2.95z" fill={color} />
-      <Path d="M15.6 12.2c-.75 1.3-1.15 2.3-1.15 2.95a1.15 1.15 0 0 0 2.3 0c0-.65-.4-1.65-1.15-2.95z" fill={color} />
+      <Circle cx={8.5} cy={10} r={1.3} fill={color} />
+      <Circle cx={15.5} cy={10} r={1.3} fill={color} />
+      <Path d="M7.4 17.2q2.9-2.6 5.8 0" {...stroke} />
+      <Path d="M16.8 12.2c-1.47 2.25-2.2 3.75-2.2 4.75a2.2 2.2 0 0 0 4.4 0c0-1-.73-2.5-2.2-4.75z" fill={color} />
     </Svg>
   );
 }

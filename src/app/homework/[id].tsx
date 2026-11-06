@@ -13,7 +13,7 @@ import { useStore } from '@/data/store';
 import { ReactionKey } from '@/data/types';
 import { useTheme } from '@/theme/useTheme';
 
-const reactions: { key: ReactionKey; label?: string }[] = [{ key: 'confirm', label: '对的对的' }, { key: 'thumbs' }, { key: 'cry' }];
+const reactions: ReactionKey[] = ['confirm', 'thumbs', 'cry'];
 
 export default function HomeworkDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -96,12 +96,11 @@ export default function HomeworkDetail() {
       <View style={styles.reactions}>
         {reactions.map((r) => (
           <ReactionChip
-            key={r.key}
-            kind={r.key}
-            label={r.label}
-            count={item.reactions[r.key]}
-            mine={item.myReactions.includes(r.key)}
-            onPress={() => toggleReaction(item.id, r.key)}
+            key={r}
+            kind={r}
+            count={item.reactions[r]}
+            mine={item.myReactions.includes(r)}
+            onPress={() => toggleReaction(item.id, r)}
           />
         ))}
       </View>
@@ -115,13 +114,11 @@ export default function HomeworkDetail() {
 // 点一下轻轻弹起来，像 Discord 的表情回应
 function ReactionChip({
   kind,
-  label,
   count,
   mine,
   onPress,
 }: {
   kind: ReactionKey;
-  label?: string;
   count: number;
   mine: boolean;
   onPress: () => void;
@@ -144,12 +141,7 @@ function ReactionChip({
           styles.reaction,
           { borderColor: mine ? theme.accent : theme.line, backgroundColor: mine ? theme.accentSoft : 'transparent' },
         ]}>
-        <ReactionIcon kind={kind} active={mine} color={mine ? theme.accent : theme.sub} fill={mine ? theme.accentSoft : 'transparent'} />
-        {label && (
-          <Txt variant="sub" tone={mine ? 'accent' : 'sub'}>
-            {label}
-          </Txt>
-        )}
+        <ReactionIcon size={19} kind={kind} active={mine} color={mine ? theme.accent : theme.sub} fill={mine ? theme.accentSoft : 'transparent'} />
         <Txt variant="sub" tone={mine ? 'accent' : 'sub'} style={{ fontWeight: '600' }}>
           {count}
         </Txt>
