@@ -35,8 +35,12 @@ export default function SwufeImportScreen() {
   const request = useRef<string | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const submitted = useRef(false);
+  const mounted = useRef(true);
 
-  useEffect(() => () => clearTimeout(timer.current), []);
+  useEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; clearTimeout(timer.current); };
+  }, []);
 
   function cancelRead() {
     clearTimeout(timer.current);
@@ -106,15 +110,29 @@ export default function SwufeImportScreen() {
     browser.current?.inject(grabScheduleScript(id));
   }
 
-  function confirm() {
+  async function confirm() {
     if (!preview || !selected.size || submitted.current) return;
     const date = start.trim();
     if (date && !validMonday(date)) { setError('请输入有效的第一周周一日期，例如 2026-09-07'); return; }
     submitted.current = true;
-    const receipt = importCourses(preview.courses.filter((c) => selected.has(c.id)), preview.term, date || undefined);
+    setBusy(true);
+    setError('');
+    let receipt: Awaited<ReturnType<typeof importCourses>>;
+    try {
+      receipt = await importCourses(preview.courses.filter((c) => selected.has(c.id)), preview.term, date || undefined);
+    } catch {
+      submitted.current = false;
+      if (mounted.current) {
+        setBusy(false);
+        setError('保存失败，原课表没有改变。请检查手机存储空间后重试');
+      }
+      return;
+    }
     haptic.success();
-    if (router.canGoBack()) router.back();
-    else router.replace('/timetable');
+    if (mounted.current) {
+      if (router.canGoBack()) router.back();
+      else router.replace('/timetable');
+    }
     toast(`新增 ${receipt.added} 门，更新 ${receipt.updated} 门课程`, { label: '撤销', onPress: receipt.undo });
   }
 
@@ -122,7 +140,7 @@ export default function SwufeImportScreen() {
     <View style={{ flex: 1, paddingTop: insets.top }}>
       <Backdrop />
       <View style={styles.header}>
-        <Press onPress={preview ? () => { setPreview(null); setError(''); } : closeModal} hitSlop={12} accessibilityLabel={preview ? '返回教务网页' : '关闭导入'}>
+        <Press disabled={busy} onPress={preview ? () => { setPreview(null); setError(''); } : closeModal} hitSlop={12} accessibilityLabel={preview ? '返回教务网页' : '关闭导入'}>
           <Ionicons name={preview ? 'chevron-back' : 'close'} size={24} color={theme.text} />
         </Press>
         <Txt variant="title" style={{ flex: 1 }}>{preview ? '确认课表' : '从教务导入'}</Txt>
@@ -168,7 +186,7 @@ export default function SwufeImportScreen() {
           <Txt variant="caption" tone="sub">填写后自动计算当前周；不填写时可手动查看周次。</Txt>
         </ScrollView>
         <View style={{ padding: 20, paddingBottom: insets.bottom + 16 }}>
-          <PrimaryButton label={`导入所选 ${selected.size} 门课程`} onPress={confirm} disabled={!selected.size} />
+          <PrimaryButton label={busy ? '正在保存…' : `导入所选 ${selected.size} 门课程`} onPress={confirm} disabled={!selected.size || busy} />
         </View>
       </>}
       {/* 预览时保留浏览器实例，返回修改学期无需重新登录。 */}

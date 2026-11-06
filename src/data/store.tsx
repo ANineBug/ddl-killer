@@ -4,6 +4,7 @@ import { createContext, ReactNode, useCallback, useContext, useEffect, useLayout
 import { mockCourses, mockHomework } from './mock';
 import { Course, Homework, Profile, ReactionKey, Reminder, Settings, TimetableSettings } from './types';
 import { mergeImportedCourses, migrateCourse } from './schedule';
+import { createPersistence } from './persistence';
 
 export type NewHomework = Pick<Homework, 'courseId' | 'title' | 'detail' | 'due' | 'submit' | 'hasPhoto'>;
 export type NewCourse = Omit<Course, 'id' | 'hue' | 'members'>;
@@ -15,7 +16,7 @@ type StoreValue = {
   settings: Settings;
   timetable: TimetableSettings;
   setTimetable: (s: Partial<TimetableSettings>) => void;
-  importCourses: (courses: Course[], term: string, start?: string) => { added: number; updated: number; undo: () => void };
+  importCourses: (courses: Course[], term: string, start?: string) => Promise<{ added: number; updated: number; undo: () => void }>;
   courseById: (id: string) => Course | undefined;
   toggleDone: (id: string) => void;
   toggleReaction: (id: string, key: ReactionKey) => void;
@@ -64,6 +65,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [timetable, setTimetableState] = useState<TimetableSettings>({ starts: {} });
   const homeworkRef = useRef(homework);
   useLayoutEffect(() => { homeworkRef.current = homework; }, [homework]);
+  const persistence = useMemo(() => createPersistence(AsyncStorage, STORE_KEY), []);
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   // 打开 app 时先读出上次保存的数据；第一次打开没有保存过，就用演示数据
   useEffect(() => {
@@ -84,12 +87,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   // 数据一变就存；连续改动时等 300 毫秒停下来再存一次
   useEffect(() => {
     if (!ready) return;
-    const t = setTimeout(() => {
+    saveTimer.current = setTimeout(() => {
       const data: Saved = { courses, homework, profile, settings, timetable };
-      AsyncStorage.setItem(STORE_KEY, JSON.stringify(data)).catch(() => {});
+      persistence.save(JSON.stringify(data)).catch(() => {});
     }, 300);
-    return () => clearTimeout(t);
-  }, [ready, courses, homework, profile, settings, timetable]);
+    return () => clearTimeout(saveTimer.current);
+  }, [ready, courses, homework, profile, settings, timetable, persistence]);
 
   const courseById = useCallback((id: string) => courses.find((c) => c.id === id), [courses]);
 
@@ -192,10 +195,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const setSettings = useCallback((s: Partial<Settings>) => setSettingsState((prev) => ({ ...prev, ...s })), []);
   const setTimetable = useCallback((s: Partial<TimetableSettings>) => setTimetableState((prev) => ({ ...prev, ...s })), []);
 
-  const importCourses = useCallback((incoming: Course[], term: string, start?: string) => {
+  const importCourses = useCallback(async (incoming: Course[], term: string, start?: string) => {
     const result = mergeImportedCourses(courses, incoming);
     const before = timetable;
     const next = { term, starts: start ? { ...timetable.starts, [term]: start } : timetable.starts };
+    // 导入先可靠保存再更新界面。失败时保留预览和原课表，允许直接重试。
+    clearTimeout(saveTimer.current);
+    const saved: Saved = { courses: result.courses, homework, profile, settings, timetable: next };
+    await persistence.save(JSON.stringify(saved));
     setCourses(result.courses);
     setTimetableState(next);
     let undone = false;
@@ -214,7 +221,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         setTimetableState((current) => current === next ? before : current);
       },
     };
-  }, [courses, timetable]);
+  }, [courses, timetable, homework, profile, settings, persistence]);
 
   const resetDemo = useCallback(() => {
     setCourses(mockCourses.map(migrateCourse));
