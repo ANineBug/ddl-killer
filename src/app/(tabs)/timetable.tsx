@@ -36,7 +36,8 @@ function TimetableContent() {
   const { theme } = useTheme();
   const { courses: allCourses, timetable, setTimetable } = useStore();
   const courses = allCourses.filter((c) => timetable.term ? c.source?.term === timetable.term : !c.source);
-  const terms = [...new Set(allCourses.flatMap((c) => c.source ? [c.source.term] : []))];
+  // 删空当前学期后仍保留切换入口，已有手动课程不会因此变得无法访问。
+  const terms = [...new Set([...allCourses.flatMap((c) => c.source ? [c.source.term] : []), ...(timetable.term ? [timetable.term] : [])])];
   const start = timetable.term ? timetable.starts[timetable.term] : undefined;
   const actualWeek = weekFromStart(start);
   const maxWeek = Math.max(20, ...courses.flatMap((c) => c.weeks.map((w) => w.to)));

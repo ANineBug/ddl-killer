@@ -54,7 +54,7 @@ npx expo prebuild --platform android --no-install
 
 25 项自动测试覆盖整份课表逐项对照、同班多时间 / 多地点 / 多教师、不同班不混合、单双周、旧数据迁移、重复导入保留关联、不同学期分隔、桥接白名单、乱序响应、错学期拦截、写入顺序与保存失败重试。接口响应测试使用构造数据，不代表已验证学校在线响应。
 
-浏览器检查覆盖手机宽度的预览、勾选、保存失败后重试、导入、撤销、重复导入、重启恢复、编辑第二个安排且不改变第一个安排；发布一条概率论作业后，从周一和周五课块进入同一课程，都能看到这条作业。Android prebuild 检查 XML 和 manifest，网页与 Android JS 打包通过。GitHub Actions 生成安装包并验证签名；手机真实登录由用户收到 APK 后验证，步骤见 [ANDROID_TEST.md](./ANDROID_TEST.md)。
+浏览器检查覆盖手机宽度的预览、勾选、保存失败后重试、导入、撤销、重复导入、成功后立即刷新恢复、编辑第二个安排且不改变第一个安排；发布一条概率论作业后，从周一和周五课块进入同一课程，都能看到这条作业。另验证暮色主题、从预览返回网页，以及删空当前学期后仍可切换到原有手动课程。Android prebuild 检查 XML 和 manifest，网页与 Android JS 打包通过。GitHub Actions 生成安装包并验证签名；手机真实登录由用户收到 APK 后验证，步骤见 [ANDROID_TEST.md](./ANDROID_TEST.md)。
 
 仓库原本未配置 lint。使用临时的 Expo 默认配置运行检查时，原有动画、refs 和 Date.now 写法存在 React Compiler lint 错误；本次对照 HEAD 从 107 项降至 75 项，没有新增错误。检查用的 lint 依赖和配置未写入改动内容。
 
