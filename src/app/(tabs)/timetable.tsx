@@ -185,12 +185,34 @@ export default function TimetableScreen() {
                     );
                   }),
               )}
+
+              {/* 一门课都没有的时候：格子照常画，中间放一句提示和添加按钮 */}
+              {courses.length === 0 && (
+                <View style={[styles.empty, { left: TIME_COL }]} pointerEvents="box-none">
+                  <Txt variant="sub" tone="sub">
+                    课表还是空的
+                  </Txt>
+                  <Txt variant="caption" tone="faint" style={{ marginTop: 6 }}>
+                    一键导入还在路上，先手动添加吧
+                  </Txt>
+                  <Press
+                    onPress={() => router.push('/add-course')}
+                    style={[styles.emptyButton, { borderColor: theme.line, backgroundColor: theme.card }]}>
+                    <Ionicons name="add" size={16} color={theme.text} />
+                    <Txt variant="sub" style={{ marginLeft: 4 }}>
+                      添加课程
+                    </Txt>
+                  </Press>
+                </View>
+              )}
             </View>
           </Animated.View>
 
-          <Txt variant="caption" tone="faint" style={{ marginTop: 18, textAlign: 'center' }}>
-            课表导入还在研究中，目前请点右上角手动添加
-          </Txt>
+          {courses.length > 0 && (
+            <Txt variant="caption" tone="faint" style={{ marginTop: 18, textAlign: 'center' }}>
+              课表导入还在研究中，目前请点右上角手动添加
+            </Txt>
+          )}
         </View>
       </ScrollView>
     </TabScreen>
@@ -203,6 +225,8 @@ const styles = StyleSheet.create({
   weekRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: 18, marginBottom: 14 },
   dayPill: { paddingHorizontal: 6, paddingVertical: 3, borderRadius: 999 },
   todayCol: { position: 'absolute', top: 0, bottom: 0, borderRadius: 10 },
+  empty: { position: 'absolute', right: 0, top: 3 * ROW, alignItems: 'center' },
+  emptyButton: { flexDirection: 'row', alignItems: 'center', marginTop: 16, paddingHorizontal: 18, height: 40, borderRadius: 999, borderWidth: 1 },
   // 横线淡到几乎看不见，只起对齐作用
   periodRow: {
     position: 'absolute',

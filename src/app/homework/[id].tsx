@@ -18,9 +18,13 @@ const reactions: ReactionKey[] = ['confirm', 'thumbs', 'cry'];
 export default function HomeworkDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { theme } = useTheme();
-  const { homework, courseById, toggleDone, toggleReaction } = useStore();
+  const { homework, courseById, toggleDone, toggleReaction, removeHomework, restoreHomework } = useStore();
   const toast = useToast();
-  const item = homework.find((h) => h.id === id);
+  // 删除后页面还在往下收起，这段时间里继续显示删之前的内容
+  const last = useRef(homework.find((h) => h.id === id));
+  const found = homework.find((h) => h.id === id);
+  if (found) last.current = found;
+  const item = last.current;
 
   if (!item) {
     return (
@@ -32,6 +36,14 @@ export default function HomeworkDetail() {
 
   const course = courseById(item.courseId);
   const urgent = !item.done && isUrgent(item.due);
+
+  function remove() {
+    if (!item) return;
+    haptic.light();
+    const removed = removeHomework(item.id);
+    closeModal();
+    if (removed) toast(`已删除「${removed.title}」`, { label: '撤销', onPress: () => restoreHomework(removed) });
+  }
 
   return (
     <ModalScreen
@@ -107,6 +119,24 @@ export default function HomeworkDetail() {
       <Txt variant="caption" tone="faint" style={{ marginTop: 10 }}>
         确认的同学越多，这条作业越可信
       </Txt>
+
+      {/* 只有自己上传的作业才能改和删；别人上传的有问题，用回应告诉大家 */}
+      {item.mine && (
+        <View style={styles.actions}>
+          <Press onPress={() => router.push(`/upload?id=${item.id}`)} style={[styles.action, { borderColor: theme.line }]}>
+            <Ionicons name="create-outline" size={16} color={theme.sub} />
+            <Txt variant="sub" tone="sub">
+              编辑
+            </Txt>
+          </Press>
+          <Press onPress={remove} style={[styles.action, { borderColor: theme.line }]}>
+            <Ionicons name="trash-outline" size={16} color={theme.urgent} />
+            <Txt variant="sub" tone="urgent">
+              删除
+            </Txt>
+          </Press>
+        </View>
+      )}
     </ModalScreen>
   );
 }
@@ -181,5 +211,7 @@ const styles = StyleSheet.create({
   info: { flexDirection: 'row', alignItems: 'center', paddingVertical: 13, paddingHorizontal: 16 },
   photo: { marginTop: 14, height: 150, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
   reactions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 22 },
+  actions: { flexDirection: 'row', gap: 10, marginTop: 24 },
+  action: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, height: 44, borderRadius: 999, borderWidth: 1 },
   reaction: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 999, borderWidth: 1 },
 });

@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import { useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { StyleSheet } from 'react-native';
 
@@ -6,7 +7,7 @@ import { CalendarPicker } from '@/components/CalendarPicker';
 import { TimePicker } from '@/components/TimePicker';
 import { useToast } from '@/components/Toast';
 import { Chip, ChipGroup, closeModal, Field, ModalScreen, Press, PrimaryButton, Txt } from '@/components/ui';
-import { dayDiff, isoWeekday, weekdayNames } from '@/data/format';
+import { dayDiff, hhmm, isoWeekday, weekdayNames } from '@/data/format';
 import { useStore } from '@/data/store';
 import { SubmitMethod } from '@/data/types';
 import { useTheme } from '@/theme/useTheme';
@@ -31,18 +32,26 @@ function nextDays() {
 
 export default function Upload() {
   const { theme } = useTheme();
-  const { courses, addHomework, courseById } = useStore();
+  const { courses, homework, addHomework, updateHomework, courseById } = useStore();
   const toast = useToast();
+  // 带着 id 打开就是编辑自己上传过的作业，表单先填好原来的内容
+  const { id } = useLocalSearchParams<{ id?: string }>();
+  const editing = homework.find((h) => h.id === id && h.mine);
 
-  const [courseId, setCourseId] = useState<string | null>(null);
-  const [title, setTitle] = useState('');
-  const [date, setDate] = useState(() => dayFromToday(1));
+  const [courseId, setCourseId] = useState<string | null>(editing?.courseId ?? null);
+  const [title, setTitle] = useState(editing?.title ?? '');
+  const [date, setDate] = useState(() => {
+    if (!editing) return dayFromToday(1);
+    const d = new Date(editing.due);
+    d.setHours(0, 0, 0, 0);
+    return d;
+  });
   const [calendarOpen, setCalendarOpen] = useState(false);
-  const [time, setTime] = useState('23:59');
+  const [time, setTime] = useState(editing ? hhmm(editing.due) : '23:59');
   const [timeOpen, setTimeOpen] = useState(false);
-  const [submit, setSubmit] = useState<SubmitMethod>('学习通');
-  const [detail, setDetail] = useState('');
-  const [hasPhoto, setHasPhoto] = useState(false);
+  const [submit, setSubmit] = useState<SubmitMethod>(editing?.submit ?? '学习通');
+  const [detail, setDetail] = useState(editing?.detail ?? '');
+  const [hasPhoto, setHasPhoto] = useState(editing?.hasPhoto ?? false);
 
   const ready = courseId !== null && title.trim().length > 0;
   const quickDays = nextDays();
@@ -55,14 +64,27 @@ export default function Upload() {
     const due = new Date(date);
     const [h, m] = time.split(':').map(Number);
     due.setHours(h, m, 0, 0);
-    addHomework({ courseId, title: title.trim(), detail: detail.trim(), due, submit, hasPhoto });
+    const data = { courseId, title: title.trim(), detail: detail.trim(), due, submit, hasPhoto };
     closeModal();
+    if (editing) {
+      updateHomework(editing.id, data);
+      toast('已保存修改');
+      return;
+    }
+    addHomework(data);
     const course = courseById(courseId);
     toast(`已发布，同课的 ${course?.members ?? 0} 位同学都能看到了`);
   }
 
   return (
-    <ModalScreen title="上传作业" footer={<PrimaryButton label="发布" onPress={publish} disabled={!ready} />}>
+    <ModalScreen
+      title={editing ? '编辑作业' : '上传作业'}
+      footer={<PrimaryButton label={editing ? '保存' : '发布'} onPress={publish} disabled={!ready} />}>
+      {courses.length === 0 && (
+        <Txt variant="caption" tone="faint">
+          课表里还没有课，先去「课表」添加课程，才能给它上传作业。
+        </Txt>
+      )}
       <ChipGroup label="哪门课">
         {courses.map((c) => (
           <Chip key={c.id} label={c.name} active={courseId === c.id} onPress={() => setCourseId(c.id)} />

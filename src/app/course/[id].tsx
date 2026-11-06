@@ -1,7 +1,11 @@
+import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
+import { useRef } from 'react';
 import { StyleSheet, View } from 'react-native';
 
-import { Card, ModalScreen, Press, Section, Txt } from '@/components/ui';
+import { haptic } from '@/components/haptic';
+import { useToast } from '@/components/Toast';
+import { Card, closeModal, ModalScreen, Press, Section, Txt } from '@/components/ui';
 import { formatDue, formatSession, formatWeeks, isUrgent } from '@/data/format';
 import { useStore } from '@/data/store';
 import { useTheme } from '@/theme/useTheme';
@@ -9,8 +13,12 @@ import { useTheme } from '@/theme/useTheme';
 export default function CourseDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { theme } = useTheme();
-  const { courseById, homework } = useStore();
-  const course = courseById(id);
+  const { courseById, homework, removeCourse, restoreCourse } = useStore();
+  const toast = useToast();
+  // 删除后页面还在往下收起，这段时间里继续显示删之前的内容
+  const last = useRef(courseById(id));
+  if (courseById(id)) last.current = courseById(id);
+  const course = last.current;
 
   if (!course) {
     return (
@@ -22,6 +30,16 @@ export default function CourseDetail() {
 
   const items = homework.filter((h) => h.courseId === course.id).sort((a, b) => b.due.getTime() - a.due.getTime());
   const hue = theme.courseHues[course.hue % theme.courseHues.length];
+
+  function remove() {
+    if (!course) return;
+    haptic.light();
+    const removed = removeCourse(course.id);
+    closeModal();
+    if (!removed) return;
+    const extra = removed.homework.length ? `和 ${removed.homework.length} 条作业` : '';
+    toast(`已删除「${course.name}」${extra}`, { label: '撤销', onPress: () => restoreCourse(removed) });
+  }
 
   return (
     <ModalScreen>
@@ -73,6 +91,21 @@ export default function CourseDetail() {
           </Card>
         )}
       </Section>
+
+      <View style={styles.actions}>
+        <Press onPress={() => router.push(`/add-course?id=${course.id}`)} style={[styles.action, { borderColor: theme.line }]}>
+          <Ionicons name="create-outline" size={16} color={theme.sub} />
+          <Txt variant="sub" tone="sub">
+            编辑课程
+          </Txt>
+        </Press>
+        <Press onPress={remove} style={[styles.action, { borderColor: theme.line }]}>
+          <Ionicons name="trash-outline" size={16} color={theme.urgent} />
+          <Txt variant="sub" tone="urgent">
+            从课表删除
+          </Txt>
+        </Press>
+      </View>
     </ModalScreen>
   );
 }
@@ -80,4 +113,6 @@ export default function CourseDetail() {
 const styles = StyleSheet.create({
   mark: { width: 28, height: 4, borderRadius: 2 },
   row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 13, paddingHorizontal: 16 },
+  actions: { flexDirection: 'row', gap: 10, marginTop: 28 },
+  action: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, height: 44, borderRadius: 999, borderWidth: 1 },
 });

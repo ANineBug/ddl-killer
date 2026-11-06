@@ -6,14 +6,16 @@ import { haptic } from '@/components/haptic';
 import { Card, Chip, Press, Txt } from '@/components/ui';
 import { dayDiff, formatDue, isoWeekday, weekdayNames } from '@/data/format';
 import { useStore } from '@/data/store';
-import { Homework, Reminder } from '@/data/types';
+import { Homework, Reminder, Settings } from '@/data/types';
 import { useTheme } from '@/theme/useTheme';
 
-// 和"我的 → 提醒"里的默认设置一致
-export const DEFAULT_REMINDERS: Reminder[] = [
-  { kind: 'before', minutes: 1440 },
-  { kind: 'before', minutes: 180 },
-];
+// 默认提醒来自"我的 → 提醒"里的两个开关
+export function defaultReminders(settings: Settings): Reminder[] {
+  return [
+    ...(settings.remindDay ? [{ kind: 'before' as const, minutes: 1440 }] : []),
+    ...(settings.remindHours ? [{ kind: 'before' as const, minutes: 180 }] : []),
+  ];
+}
 
 const presets = [
   { minutes: 1440, label: '前 1 天' },
@@ -37,14 +39,14 @@ function atTime(dayOffset: number, time: string) {
 // 作业详情里的"提醒我"：常用的几个点选，也能加一个具体时间
 export function ReminderCard({ item }: { item: Homework }) {
   const { theme } = useTheme();
-  const { setReminders } = useStore();
+  const { setReminders, settings } = useStore();
   const [picking, setPicking] = useState(false);
   const [day, setDay] = useState(0);
   const [time, setTime] = useState('21:00');
 
   const now = Date.now();
   const custom = item.reminders !== undefined;
-  const list = item.reminders ?? DEFAULT_REMINDERS;
+  const list = item.reminders ?? defaultReminders(settings);
   const hasBefore = (m: number) => list.some((r) => r.kind === 'before' && r.minutes === m);
   const customAts = list
     .filter((r): r is Extract<Reminder, { kind: 'at' }> => r.kind === 'at')

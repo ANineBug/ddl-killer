@@ -42,11 +42,20 @@ export type Homework = {
   myReactions: ReactionKey[];
   done: boolean;
   hasPhoto: boolean;
-  // 没设置就跟随默认提醒（截止前 1 天、3 小时）
+  // 没设置就跟随"我的 → 提醒"里的默认提醒
   reminders?: Reminder[];
+  // 是不是我自己上传的；只有自己上传的才能编辑和删除
+  mine?: boolean;
 };
 
 export type Profile = {
   nickname: string;
   avatarHue: number;
+};
+
+// "我的 → 提醒"里的设置
+export type Settings = {
+  remindDay: boolean;
+  remindHours: boolean;
+  quietNight: boolean;
 };

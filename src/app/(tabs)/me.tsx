@@ -12,13 +12,13 @@ import { useTheme } from '@/theme/useTheme';
 
 export default function MeScreen() {
   const { theme } = useTheme();
-  const { profile, setProfile, homework } = useStore();
+  const { profile, setProfile, homework, settings, setSettings, resetDemo } = useStore();
   const insets = useSafeAreaInsets();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(profile.nickname);
-  const [remind, setRemind] = useState({ day: true, hours: true, quiet: true });
+  const [confirmReset, setConfirmReset] = useState(false);
 
-  const uploaded = homework.filter((h) => h.uploader === profile.nickname).length;
+  const uploaded = homework.filter((h) => h.mine).length;
   const confirmed = homework.filter((h) => h.myReactions.includes('confirm')).length;
   const pending = homework.filter((h) => !h.done).length;
   const hue = theme.courseHues[profile.avatarHue % theme.courseHues.length];
@@ -85,15 +85,18 @@ export default function MeScreen() {
 
         <Section title="提醒">
           <Card>
-            <ToggleRow label="截止前 1 天提醒" value={remind.day} onChange={(v) => setRemind({ ...remind, day: v })} />
-            <ToggleRow label="截止前 3 小时提醒" value={remind.hours} onChange={(v) => setRemind({ ...remind, hours: v })} />
+            <ToggleRow label="截止前 1 天提醒" value={settings.remindDay} onChange={(v) => setSettings({ remindDay: v })} />
+            <ToggleRow label="截止前 3 小时提醒" value={settings.remindHours} onChange={(v) => setSettings({ remindHours: v })} />
             <ToggleRow
               label="夜间免打扰 23:00–7:00"
-              value={remind.quiet}
-              onChange={(v) => setRemind({ ...remind, quiet: v })}
+              value={settings.quietNight}
+              onChange={(v) => setSettings({ quietNight: v })}
               last
             />
           </Card>
+          <Txt variant="caption" tone="faint" style={{ marginTop: 8, marginLeft: 4 }}>
+            每条作业默认按这里提醒，也可以在作业详情里单独调整
+          </Txt>
         </Section>
 
         <Section title="第二期">
@@ -105,8 +108,28 @@ export default function MeScreen() {
         </Section>
 
         <Txt variant="caption" tone="faint" style={{ textAlign: 'center', marginTop: 26 }}>
-          版本 0.1 · 当前为演示数据
+          版本 0.1 · 数据保存在这台手机上
         </Txt>
+        {/* 点一次变成确认文字，3 秒内再点一次才真正重置 */}
+        <Press
+          hitSlop={8}
+          style={{ alignSelf: 'center', marginTop: 10 }}
+          onPress={() => {
+            if (!confirmReset) {
+              haptic.select();
+              setConfirmReset(true);
+              setTimeout(() => setConfirmReset(false), 3000);
+              return;
+            }
+            haptic.success();
+            setConfirmReset(false);
+            resetDemo();
+            setDraft('游客');
+          }}>
+          <Txt variant="caption" tone={confirmReset ? 'urgent' : 'faint'} style={{ textDecorationLine: 'underline' }}>
+            {confirmReset ? '再点一次，清空我的数据并恢复演示数据' : '恢复演示数据'}
+          </Txt>
+        </Press>
       </ScrollView>
     </TabScreen>
   );
