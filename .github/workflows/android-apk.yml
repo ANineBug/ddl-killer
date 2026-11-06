@@ -14,6 +14,7 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v7
 
@@ -33,6 +34,11 @@ jobs:
       - name: 安装依赖
         run: npm ci
 
+      - name: 课表导入回归与类型检查
+        run: |
+          npm test
+          npx tsc --noEmit
+
       - name: 生成安卓工程
         run: npx expo prebuild --platform android --no-install
 
@@ -41,7 +47,8 @@ jobs:
         run: ./gradlew assembleRelease -PreactNativeArchitectures=arm64-v8a --no-daemon
 
       - name: 给 APK 起名
-        run: mv android/app/build/outputs/apk/release/app-release.apk "homework-${{ github.ref_name }}-${{ github.run_number }}.apk"
+        # 功能分支名可能带 /，用提交号命名避免把文件名误当作目录。
+        run: mv android/app/build/outputs/apk/release/app-release.apk "homework-${GITHUB_SHA::7}-${GITHUB_RUN_NUMBER}.apk"
 
       - uses: actions/upload-artifact@v7
         with:

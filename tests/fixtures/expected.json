@@ -1,0 +1,272 @@
+{
+  "term": "2026-2027学年第1学期",
+  "courses": [
+    {
+      "name": "创新程序设计实践",
+      "teacher": "丙老师",
+      "room": "颐德楼H903",
+      "credit": "2.0",
+      "note": "实践",
+      "sessions": [
+        {
+          "weekday": 3,
+          "from": 5,
+          "to": 6,
+          "weeks": [
+            "1-4"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "创新程序设计实践",
+      "teacher": "丁老师",
+      "room": "颐德楼H903",
+      "credit": "2.0",
+      "note": "实践",
+      "sessions": [
+        {
+          "weekday": 3,
+          "from": 5,
+          "to": 6,
+          "weeks": [
+            "5-15"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "创新程序设计实践",
+      "teacher": "戊老师",
+      "room": "颐德楼H903",
+      "credit": "2.0",
+      "note": "实践",
+      "sessions": [
+        {
+          "weekday": 3,
+          "from": 5,
+          "to": 6,
+          "weeks": [
+            "16-17"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "大学生职业生涯规划与创业基础",
+      "teacher": "癸老师",
+      "room": "经世楼C902",
+      "credit": "2.0",
+      "note": "通基",
+      "sessions": [
+        {
+          "weekday": 4,
+          "from": 10,
+          "to": 12,
+          "weeks": [
+            "1-2",
+            "4-6",
+            "8-12"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "大学生职业生涯规划与创业基础",
+      "teacher": "癸老师",
+      "room": "实践场地",
+      "credit": "2.0",
+      "note": "通基",
+      "sessions": [
+        {
+          "weekday": 4,
+          "from": 10,
+          "to": 12,
+          "weeks": [
+            "3-3",
+            "7-7"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "大学物理",
+      "teacher": "乙老师",
+      "room": "颐德楼H902",
+      "credit": "3.0",
+      "note": "学基",
+      "sessions": [
+        {
+          "weekday": 3,
+          "from": 10,
+          "to": 12,
+          "weeks": [
+            "1-17"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "概率论与数理统计B",
+      "teacher": "寅老师,卯老师",
+      "room": "经世楼G901",
+      "credit": "4.0",
+      "note": "通基",
+      "sessions": [
+        {
+          "weekday": 1,
+          "from": 6,
+          "to": 7,
+          "weeks": [
+            "1-17"
+          ]
+        },
+        {
+          "weekday": 5,
+          "from": 5,
+          "to": 6,
+          "weeks": [
+            "1-17"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "计算机网络",
+      "teacher": "丑老师",
+      "room": "经世楼D901",
+      "credit": "3.0",
+      "note": "大平",
+      "sessions": [
+        {
+          "weekday": 5,
+          "from": 7,
+          "to": 9,
+          "weeks": [
+            "1-17"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "马克思主义基本原理",
+      "teacher": "子老师",
+      "room": "经世楼C903",
+      "credit": "3.0",
+      "note": "思政",
+      "sessions": [
+        {
+          "weekday": 5,
+          "from": 3,
+          "to": 4,
+          "weeks": [
+            "1-17"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "数字逻辑电路",
+      "teacher": "辛老师",
+      "room": "颐德楼H901",
+      "credit": "3.0",
+      "note": "专核",
+      "sessions": [
+        {
+          "weekday": 3,
+          "from": 7,
+          "to": 9,
+          "weeks": [
+            "1-17"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "数字政府与社会",
+      "teacher": "甲老师",
+      "room": "经世楼B901",
+      "credit": "2.0",
+      "note": "通核",
+      "sessions": [
+        {
+          "weekday": 4,
+          "from": 3,
+          "to": 4,
+          "weeks": [
+            "1-5",
+            "7-17"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "数字政府与社会",
+      "teacher": "甲老师",
+      "room": "讲座场地",
+      "credit": "2.0",
+      "note": "通核",
+      "sessions": [
+        {
+          "weekday": 2,
+          "from": 8,
+          "to": 9,
+          "weeks": [
+            "6-6"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "算法分析与设计",
+      "teacher": "壬老师",
+      "room": "经世楼E901",
+      "credit": "3.0",
+      "note": "大平",
+      "sessions": [
+        {
+          "weekday": 4,
+          "from": 5,
+          "to": 7,
+          "weeks": [
+            "1-17"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "形势与政策III",
+      "teacher": "庚老师",
+      "room": "经世楼C904",
+      "credit": "0.5",
+      "note": "思政",
+      "sessions": [
+        {
+          "weekday": 3,
+          "from": 4,
+          "to": 4,
+          "weeks": [
+            "7-13"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "形体与礼仪3",
+      "teacher": "己老师",
+      "room": "体育馆形体室",
+      "credit": "1.0",
+      "note": "体育",
+      "sessions": [
+        {
+          "weekday": 4,
+          "from": 8,
+          "to": 9,
+          "weeks": [
+            "1-17"
+          ]
+        }
+      ]
+    }
+  ]
+}

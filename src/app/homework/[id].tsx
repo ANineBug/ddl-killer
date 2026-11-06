@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
-import { ComponentProps, useRef } from 'react';
+import { ComponentProps, useRef, useState } from 'react';
 import { Animated, Platform, StyleSheet, View } from 'react-native';
 
 import { haptic } from '@/components/haptic';
@@ -21,10 +21,10 @@ export default function HomeworkDetail() {
   const { homework, courseById, toggleDone, toggleReaction, removeHomework, restoreHomework } = useStore();
   const toast = useToast();
   // 删除后页面还在往下收起，这段时间里继续显示删之前的内容
-  const last = useRef(homework.find((h) => h.id === id));
   const found = homework.find((h) => h.id === id);
-  if (found) last.current = found;
-  const item = last.current;
+  const [last, setLast] = useState({ id, item: found });
+  if (last.id !== id || (found && found !== last.item)) setLast({ id, item: found });
+  const item = found ?? (last.id === id ? last.item : undefined);
 
   if (!item) {
     return (
@@ -81,7 +81,7 @@ export default function HomeworkDetail() {
 
       <Card style={{ marginTop: 20 }}>
         <InfoRow icon="paper-plane-outline" label="提交方式" value={item.submit} />
-        <InfoRow icon="location-outline" label="上课地点" value={course?.sessions[0]?.location ?? '—'} />
+        <InfoRow icon="location-outline" label="上课地点" value={[...new Set(course?.sessions.map((s) => s.location).filter(Boolean) ?? [])].join('、') || '—'} />
         <InfoRow icon="person-outline" label="上传" value={`${item.uploader} · ${formatAgo(item.uploadedAt)}`} last />
       </Card>
 
