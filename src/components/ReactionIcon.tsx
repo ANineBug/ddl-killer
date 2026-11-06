@@ -1,22 +1,20 @@
 import { useEffect, useRef } from 'react';
-import { Animated, Easing } from 'react-native';
-import Svg, { Circle, Path } from 'react-native-svg';
+import { Animated, Easing, StyleSheet, View } from 'react-native';
+import Svg, { Circle, Line, Path } from 'react-native-svg';
 
 import { ReactionKey } from '@/data/types';
 import { useTheme } from '@/theme/useTheme';
 
 const APath = Animated.createAnimatedComponent(Path);
-const ACircle = Animated.createAnimatedComponent(Circle);
+const ALine = Animated.createAnimatedComponent(Line);
 
 // 勾的总长度（两段线加起来），用来做"一笔画出来"的效果
 const CHECK_LEN = 11.5;
-// 每道眼泪的长度
-const TEAR_LEN = 5;
 
-const duration: Record<ReactionKey, number> = { confirm: 520, thumbs: 560, cry: 1100 };
+const duration: Record<ReactionKey, number> = { confirm: 520, thumbs: 560, cry: 1340 };
 
 // 自己画的三个回应图标，线条风格，颜色跟着主题走。
-// 平时是静止的；点亮的那一下才动：勾一笔画出来、大拇指往上翘一下、T_T 的眼泪流下来
+// 平时是静止的；点亮的那一下才动：勾一笔画出来、大拇指往上翘一下、小乌云下一阵雨
 export function ReactionIcon({ kind, color, fill, active, size = 18 }: {
   kind: ReactionKey;
   color: string;
@@ -85,27 +83,63 @@ export function ReactionIcon({ kind, color, fill, active, size = 18 }: {
     );
   }
 
-  // 哭脸，像 T_T：眼睛是两道横线，眼泪是竖线。
-  // 点亮时眼泪从眼睛下面重新流出来，流到底各掉下一滴，右边那滴晚一点
-  const tear = p.interpolate({
-    inputRange: [0, 0.4],
-    outputRange: [TEAR_LEN, 0],
-    easing: Easing.out(Easing.quad),
+  // 哭：一朵垂头丧气的小乌云在下雨，"心里下雨了"。
+  // 点亮时云朵往下一沉、左右晃一晃，三道雨点错开落两轮
+  const unit = size / 24;
+  const sink = p.interpolate({ inputRange: [0, 0.3, 0.6, 1], outputRange: [0, 0.8 * unit, 0.4 * unit, 0] });
+  const sway = p.interpolate({ inputRange: [0, 0.3, 0.6, 1], outputRange: ['0deg', '-3deg', '2deg', '0deg'] });
+  return (
+    <View style={{ width: size, height: size }}>
+      <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" style={StyleSheet.absoluteFill}>
+        {RAIN.map((r, i) => {
+          const { y, opacity } = rainFrames(p, i);
+          return (
+            <ALine
+              key={i}
+              x1={r.x}
+              x2={r.x}
+              y1={Animated.add(y, r.y)}
+              y2={Animated.add(y, r.y + 2.4)}
+              {...stroke}
+              opacity={opacity}
+            />
+          );
+        })}
+      </Svg>
+      <Animated.View style={[StyleSheet.absoluteFill, { transformOrigin: '50% 42%', transform: [{ translateY: sink }, { rotate: sway }] }]}>
+        <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+          <Path d="M7.2 15a3.7 3.7 0 0 1-.5-7.36A5.2 5.2 0 0 1 16.6 6.4a4.3 4.3 0 0 1 .7 8.6z" {...stroke} fill={active ? fill : 'none'} />
+          <Circle cx={10} cy={11.4} r={0.95} fill={color} />
+          <Circle cx={14.2} cy={11.4} r={0.95} fill={color} />
+        </Svg>
+      </Animated.View>
+    </View>
+  );
+}
+
+// 三道雨点的位置：中间那道低一点，错落一些
+const RAIN = [
+  { x: 8.4, y: 17.6 },
+  { x: 12.2, y: 18.6 },
+  { x: 16, y: 17.6 },
+];
+
+// 每道雨点在整段动画里的节奏：从上面出现、往下落、消失，再落一轮，最后停在原位。
+// 三道依次晚 120ms 开始
+function rainFrames(p: Animated.Value, i: number) {
+  const total = duration.cry;
+  const start = (i * 120) / total;
+  const span = 1100 / total;
+  const at = (t: number) => start + t * span;
+  const y = p.interpolate({
+    inputRange: [at(0), at(0.5), at(0.51), at(1)],
+    outputRange: [-2, 3, -2, 0],
     extrapolate: 'clamp',
   });
-  const dropY = (start: number) =>
-    p.interpolate({ inputRange: [start, 1], outputRange: [17.4, 22], easing: Easing.in(Easing.quad), extrapolate: 'clamp' });
-  const dropOpacity = (start: number) =>
-    p.interpolate({ inputRange: [0, start, start + 0.05, 0.9, 1], outputRange: [0, 0, 1, 1, 0], extrapolate: 'clamp' });
-
-  return (
-    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-      <Circle cx={12} cy={12} r={9.5} {...stroke} fill={active ? fill : 'none'} />
-      <Path d="M6.2 9.6h4.6M13.2 9.6h4.6" {...stroke} />
-      <APath d="M8.5 11.6v5" {...stroke} strokeDasharray={[TEAR_LEN, TEAR_LEN]} strokeDashoffset={tear} />
-      <APath d="M15.5 11.6v5" {...stroke} strokeDasharray={[TEAR_LEN, TEAR_LEN]} strokeDashoffset={tear} />
-      <ACircle cx={8.5} cy={dropY(0.4)} r={1.05} fill={color} opacity={dropOpacity(0.4)} />
-      <ACircle cx={15.5} cy={dropY(0.5)} r={1.05} fill={color} opacity={dropOpacity(0.5)} />
-    </Svg>
-  );
+  const opacity = p.interpolate({
+    inputRange: [at(0), at(0.2), at(0.5), at(0.51), at(0.7), at(1)],
+    outputRange: [0, 1, 0, 0, 1, 1],
+    extrapolate: 'clamp',
+  });
+  return { y, opacity };
 }
