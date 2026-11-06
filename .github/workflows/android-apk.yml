@@ -42,6 +42,10 @@ jobs:
       - name: 生成安卓工程
         run: npx expo prebuild --platform android --no-install
 
+      - name: 验证安卓原生配置
+        working-directory: android
+        run: ./gradlew :app:lintVitalRelease -PreactNativeArchitectures=arm64-v8a --no-daemon
+
       - name: 编译 APK（只打 arm64）
         working-directory: android
         run: ./gradlew assembleRelease -PreactNativeArchitectures=arm64-v8a --no-daemon
