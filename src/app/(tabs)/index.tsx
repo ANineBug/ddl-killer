@@ -1,11 +1,12 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, Easing, Platform, ScrollView, StyleSheet, View } from 'react-native';
+import { Animated, Easing, Platform, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { haptic } from '@/components/haptic';
 import { TabScreen } from '@/components/TabScreen';
+import { TabScrollView } from '@/components/TabScroll';
 import { useToast } from '@/components/Toast';
 import { Card, Press, Section, Txt } from '@/components/ui';
 import { dayDiff, formatDue, formatToday, isUrgent } from '@/data/format';
@@ -36,7 +37,7 @@ export default function HomeworkScreen() {
 
   return (
     <TabScreen index={0}>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingTop: insets.top + 20, paddingHorizontal: 20, paddingBottom: 130 }}>
+      <TabScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingTop: insets.top + 20, paddingHorizontal: 20, paddingBottom: 130 }}>
         <View style={styles.header}>
           <View>
             <Txt variant="caption" tone="sub">
@@ -90,7 +91,7 @@ export default function HomeworkScreen() {
             {showDone && <HomeworkList items={done} />}
           </View>
         )}
-      </ScrollView>
+      </TabScrollView>
     </TabScreen>
   );
 }

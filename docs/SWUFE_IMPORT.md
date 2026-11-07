@@ -60,9 +60,11 @@ npx expo prebuild --platform android --no-install
 
 浏览器检查覆盖手机宽度的预览、勾选、保存失败后重试、导入、撤销、重复导入、成功后立即刷新恢复、编辑第二个安排且不改变第一个安排；发布一条概率论作业后，从周一和周五课块进入同一课程，都能看到这条作业。另验证暮色主题、从预览返回网页，以及删空当前学期后仍可切换到原有手动课程。Android prebuild 检查 XML 和 manifest，网页与 Android JS 打包通过。GitHub Actions 生成安装包并验证签名；手机真实登录由用户收到 APK 后验证，步骤见 [ANDROID_TEST.md](./ANDROID_TEST.md)。
 
-仓库原本未配置 lint。使用临时的 Expo 默认配置运行检查时，原有动画、refs 和 Date.now 写法存在 React Compiler lint 错误；本次对照 HEAD 从 107 项降至 75 项，没有新增错误。检查用的 lint 依赖和配置未写入改动内容。
+仓库原本未配置 lint。使用临时的 Expo 默认配置检查 1.0.2 合并结果时，原有动画、refs 和 Date.now 写法存在 83 项 React Compiler lint 错误（相同配置下，合并前 main 为 115 项、导入分支为 75 项）。按诊断类型和对应源码对照两侧，没有合并引入的新诊断。检查用的 lint 依赖和配置未写入仓库。
 
 ## 待真机验证
+
+1.0.2 已合入 main 的翻页实现：根布局保留 `GestureHandlerRootView`，三个标签页均使用 `TabScrollView` 与分页手势同时识别；课表页不额外处理横向手势。依赖保留 WebView 以及 gesture-handler、Reanimated、Worklets，锁文件由解决后的 package.json 运行 npm install 生成。新增原生模块必须随新版 APK 安装，不能只更新 JS。请同时验证先纵向滚动再横滑、斜向滚动不误翻和底部标签点击切换。
 
 1. 校外：统一身份认证 → WebVPN 门户 → 教务登录 → 个人课表。确认 cookie、window.open、验证码及跳转。
 2. 重新点击查询后，检查概率论的周一 / 周五是否获得同一个 jxb_id，确认所有课程的字段覆盖率。

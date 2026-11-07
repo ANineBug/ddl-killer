@@ -1,11 +1,12 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useRef, useState } from 'react';
-import { Animated, Easing, Platform, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { Animated, Easing, Platform, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { haptic } from '@/components/haptic';
 import { TabScreen } from '@/components/TabScreen';
+import { TabScrollView } from '@/components/TabScroll';
 import { Chip, Field, Press, Txt } from '@/components/ui';
 import { isoWeekday, weekdayNames } from '@/data/format';
 import { inWeek, sessionWeeks, validMonday, weekFromStart } from '@/data/schedule';
@@ -74,7 +75,7 @@ function TimetableContent() {
 
   return (
     <TabScreen index={1}>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingTop: insets.top + 20, paddingHorizontal: PAD, paddingBottom: 130 }}>
+      <TabScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingTop: insets.top + 20, paddingHorizontal: PAD, paddingBottom: 130 }}>
         <View style={{ width: gridW, alignSelf: 'center' }}>
           <View style={styles.header}>
             <View>
@@ -248,7 +249,7 @@ function TimetableContent() {
             </Txt>
           )}
         </View>
-      </ScrollView>
+      </TabScrollView>
     </TabScreen>
   );
 }
