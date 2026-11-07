@@ -1,4 +1,5 @@
-import { Session, WeekRule } from './types';
+import { Session, WeekRange } from './types';
+import { normalizeWeeks } from './schedule';
 
 export const weekdayNames = ['', '周一', '周二', '周三', '周四', '周五', '周六', '周日'];
 
@@ -54,9 +55,8 @@ export function formatAgo(d: Date) {
 
 export const formatSession = (s: Session) => `${weekdayNames[s.weekday]} ${s.from}-${s.to} 节`;
 
-const ruleName: Record<WeekRule, string> = { all: '', odd: '（单周）', even: '（双周）' };
-export const formatWeeks = (w: { from: number; to: number; rule: WeekRule }) =>
-  `第 ${w.from}-${w.to} 周${ruleName[w.rule]}`;
+export const formatWeeks = (weeks: WeekRange[]) => `第 ${normalizeWeeks(weeks).map((w) =>
+  `${w.from === w.to ? w.from : `${w.from}-${w.to}`}${w.rule === 'odd' ? '单' : w.rule === 'even' ? '双' : ''}`).join('、')} 周`;
 
 // 演示用：假设本学期已经上到第 10 周
 const DEMO_CURRENT_WEEK = 10;

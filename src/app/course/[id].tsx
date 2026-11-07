@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useRef } from 'react';
+import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { haptic } from '@/components/haptic';
@@ -8,6 +8,7 @@ import { useToast } from '@/components/Toast';
 import { Card, closeModal, ModalScreen, Press, Section, Txt } from '@/components/ui';
 import { formatDue, formatSession, formatWeeks, isUrgent } from '@/data/format';
 import { useStore } from '@/data/store';
+import { sessionWeeks } from '@/data/schedule';
 import { useTheme } from '@/theme/useTheme';
 
 export default function CourseDetail() {
@@ -16,9 +17,10 @@ export default function CourseDetail() {
   const { courseById, homework, removeCourse, restoreCourse } = useStore();
   const toast = useToast();
   // 删除后页面还在往下收起，这段时间里继续显示删之前的内容
-  const last = useRef(courseById(id));
-  if (courseById(id)) last.current = courseById(id);
-  const course = last.current;
+  const found = courseById(id);
+  const [last, setLast] = useState({ id, course: found });
+  if (last.id !== id || (found && found !== last.course)) setLast({ id, course: found });
+  const course = found ?? (last.id === id ? last.course : undefined);
 
   if (!course) {
     return (
@@ -48,8 +50,12 @@ export default function CourseDetail() {
         {course.name}
       </Txt>
       <Txt variant="sub" tone="sub" style={{ marginTop: 6 }}>
-        {course.teacher} · {formatWeeks(course.weeks)} · {course.members} 位同学已加入
+        {course.teacher} · {formatWeeks(course.weeks)}{course.members > 0 ? ` · ${course.members} 位同学已加入` : ''}
       </Txt>
+      {!!course.source && <Txt variant="caption" tone="sub" style={{ marginTop: 8 }}>
+        {course.source.term} · {course.source.classId ? '教学班已识别' : '本地课程 · 教学班待确认'}
+        {course.source.className ? ` · ${course.source.className}` : ''}
+      </Txt>}
 
       <Section title="上课时间">
         <Card>
@@ -57,10 +63,10 @@ export default function CourseDetail() {
             <View
               key={i}
               style={[styles.row, i < course.sessions.length - 1 && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.line }]}>
-              <Txt variant="sub">{formatSession(s)}</Txt>
-              <Txt variant="sub" tone="sub">
-                {s.location}
-              </Txt>
+              <View style={{ flex: 1, gap: 5 }}>
+                <Txt variant="sub">{formatSession(s)} · {formatWeeks(sessionWeeks(course, s))}</Txt>
+                <Txt variant="caption" tone="sub">{s.location || '地点未填写'} · {s.teacher || course.teacher}</Txt>
+              </View>
             </View>
           ))}
         </Card>

@@ -31,6 +31,7 @@ export default function RootLayout() {
                   <Stack.Screen name="course/[id]" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
                   <Stack.Screen name="upload" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
                   <Stack.Screen name="add-course" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
+                  <Stack.Screen name="import/swufe" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
                 </Stack>
               </View>
             </NavigationThemeProvider>

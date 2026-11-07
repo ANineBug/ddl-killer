@@ -1,4 +1,5 @@
 export type Weekday = 1 | 2 | 3 | 4 | 5 | 6 | 7;
+export type WeekRange = { from: number; to: number; rule: WeekRule };
 
 export type Session = {
   weekday: Weekday;
@@ -6,6 +7,9 @@ export type Session = {
   from: number;
   to: number;
   location: string;
+  // 周次属于这次上课，避免把调课的周次套到其他时间或地点上。
+  weeks?: WeekRange[];
+  teacher?: string;
 };
 
 export type WeekRule = 'all' | 'odd' | 'even';
@@ -15,7 +19,16 @@ export type Course = {
   name: string;
   teacher: string;
   sessions: Session[];
-  weeks: { from: number; to: number; rule: WeekRule };
+  weeks: WeekRange[];
+  source?: {
+    school: 'swufe';
+    term: string;
+    classId?: string;
+    className?: string;
+    courseCode?: string;
+  };
+  credit?: string;
+  note?: string;
   // 课表色块用第几种颜色
   hue: number;
   // 已加入这个教学班的同学数（演示数据）
@@ -58,4 +71,10 @@ export type Settings = {
   remindDay: boolean;
   remindHours: boolean;
   quietNight: boolean;
+};
+
+export type TimetableSettings = {
+  term?: string;
+  // 仅保存日期，不作为 UTC 时间解析，避免时区改变后周数偏移。
+  starts: Record<string, string>;
 };

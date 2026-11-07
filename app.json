@@ -2,7 +2,7 @@
   "expo": {
     "name": "作业",
     "slug": "homework-app",
-    "version": "1.0.0",
+    "version": "1.0.2",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -18,14 +18,15 @@
       },
       "predictiveBackGestureEnabled": false,
       "package": "xyz.ninebug.homework",
-      "versionCode": 1
+      "versionCode": 3
     },
     "web": {
       "favicon": "./assets/favicon.png",
       "output": "single"
     },
     "plugins": [
-      "expo-router"
+      "expo-router",
+      "./plugins/withSwufeCleartext"
     ],
     "scheme": "homeworkapp",
     "experiments": {

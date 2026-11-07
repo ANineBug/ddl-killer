@@ -1,8 +1,10 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, ReactNode, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 
 import { mockCourses, mockHomework } from './mock';
-import { Course, Homework, Profile, ReactionKey, Reminder, Settings } from './types';
+import { Course, Homework, Profile, ReactionKey, Reminder, Settings, TimetableSettings } from './types';
+import { mergeImportedCourses, migrateCourse } from './schedule';
+import { createPersistence } from './persistence';
 
 export type NewHomework = Pick<Homework, 'courseId' | 'title' | 'detail' | 'due' | 'submit' | 'hasPhoto'>;
 export type NewCourse = Omit<Course, 'id' | 'hue' | 'members'>;
@@ -12,6 +14,9 @@ type StoreValue = {
   homework: Homework[];
   profile: Profile;
   settings: Settings;
+  timetable: TimetableSettings;
+  setTimetable: (s: Partial<TimetableSettings>) => void;
+  importCourses: (courses: Course[], term: string, start?: string) => Promise<{ added: number; updated: number; undo: () => void }>;
   courseById: (id: string) => Course | undefined;
   toggleDone: (id: string) => void;
   toggleReaction: (id: string, key: ReactionKey) => void;
@@ -38,7 +43,7 @@ const STORE_KEY = 'store.v1';
 const defaultProfile: Profile = { nickname: '游客', avatarHue: 0 };
 const defaultSettings: Settings = { remindDay: true, remindHours: true, quietNight: true };
 
-type Saved = { courses: Course[]; homework: Homework[]; profile: Profile; settings: Settings };
+type Saved = { courses: Course[]; homework: Homework[]; profile: Profile; settings: Settings; timetable: TimetableSettings };
 
 // 存的时候日期会变成 "2026-11-06T15:59:00.000Z" 这样的文字，读回来时再变回日期
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$/;
@@ -53,10 +58,15 @@ const newId = (prefix: string) => `${prefix}-${Date.now()}-${seq++}`;
 // 所有数据都放在这里；每次改动后自动存到手机上，下次打开接着用
 export function StoreProvider({ children }: { children: ReactNode }) {
   const [ready, setReady] = useState(false);
-  const [courses, setCourses] = useState<Course[]>(mockCourses);
+  const [courses, setCourses] = useState<Course[]>(() => mockCourses.map(migrateCourse));
   const [homework, setHomework] = useState<Homework[]>(mockHomework);
   const [profile, setProfileState] = useState<Profile>(defaultProfile);
   const [settings, setSettingsState] = useState<Settings>(defaultSettings);
+  const [timetable, setTimetableState] = useState<TimetableSettings>({ starts: {} });
+  const homeworkRef = useRef(homework);
+  useLayoutEffect(() => { homeworkRef.current = homework; }, [homework]);
+  const persistence = useMemo(() => createPersistence(AsyncStorage, STORE_KEY), []);
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   // 打开 app 时先读出上次保存的数据；第一次打开没有保存过，就用演示数据
   useEffect(() => {
@@ -64,10 +74,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       .then((raw) => {
         if (!raw) return;
         const saved = JSON.parse(raw, reviveDates) as Partial<Saved>;
-        if (saved.courses) setCourses(saved.courses);
+        if (saved.courses) setCourses(saved.courses.map(migrateCourse));
         if (saved.homework) setHomework(saved.homework);
         if (saved.profile) setProfileState({ ...defaultProfile, ...saved.profile });
         if (saved.settings) setSettingsState({ ...defaultSettings, ...saved.settings });
+        if (saved.timetable) setTimetableState({ ...saved.timetable, starts: saved.timetable.starts ?? {} });
       })
       .catch(() => {})
       .finally(() => setReady(true));
@@ -76,12 +87,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   // 数据一变就存；连续改动时等 300 毫秒停下来再存一次
   useEffect(() => {
     if (!ready) return;
-    const t = setTimeout(() => {
-      const data: Saved = { courses, homework, profile, settings };
-      AsyncStorage.setItem(STORE_KEY, JSON.stringify(data)).catch(() => {});
+    saveTimer.current = setTimeout(() => {
+      const data: Saved = { courses, homework, profile, settings, timetable };
+      persistence.save(JSON.stringify(data)).catch(() => {});
     }, 300);
-    return () => clearTimeout(t);
-  }, [ready, courses, homework, profile, settings]);
+    return () => clearTimeout(saveTimer.current);
+  }, [ready, courses, homework, profile, settings, timetable, persistence]);
 
   const courseById = useCallback((id: string) => courses.find((c) => c.id === id), [courses]);
 
@@ -147,7 +158,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     (c: NewCourse) => {
       const s = c.sessions[0];
       const existing = courses.find((x) =>
-        x.sessions.some(
+        !x.source && x.name === c.name && x.teacher === c.teacher && x.sessions.some(
           (y) => y.weekday === s.weekday && y.from === s.from && y.location.toLowerCase() === s.location.toLowerCase(),
         ),
       );
@@ -182,12 +193,42 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const setProfile = useCallback((p: Partial<Profile>) => setProfileState((prev) => ({ ...prev, ...p })), []);
   const setSettings = useCallback((s: Partial<Settings>) => setSettingsState((prev) => ({ ...prev, ...s })), []);
+  const setTimetable = useCallback((s: Partial<TimetableSettings>) => setTimetableState((prev) => ({ ...prev, ...s })), []);
+
+  const importCourses = useCallback(async (incoming: Course[], term: string, start?: string) => {
+    const result = mergeImportedCourses(courses, incoming);
+    const before = timetable;
+    const next = { term, starts: start ? { ...timetable.starts, [term]: start } : timetable.starts };
+    // 导入先可靠保存再更新界面。失败时保留预览和原课表，允许直接重试。
+    clearTimeout(saveTimer.current);
+    const saved: Saved = { courses: result.courses, homework, profile, settings, timetable: next };
+    await persistence.save(JSON.stringify(saved));
+    setCourses(result.courses);
+    setTimetableState(next);
+    let undone = false;
+    return {
+      added: result.added.length,
+      updated: result.previous.length,
+      undo: () => {
+        if (undone) return;
+        undone = true;
+        // 只撤销这一次导入；之后新建的作业或其他课程不会被旧快照覆盖。
+        setCourses((list) => list.flatMap((c) => {
+          if (!result.applied.includes(c)) return [c];
+          if (result.added.includes(c.id)) return homeworkRef.current.some((h) => h.courseId === c.id) ? [c] : [];
+          return [result.previous.find((old) => old.id === c.id) ?? c];
+        }));
+        setTimetableState((current) => current === next ? before : current);
+      },
+    };
+  }, [courses, timetable, homework, profile, settings, persistence]);
 
   const resetDemo = useCallback(() => {
-    setCourses(mockCourses);
+    setCourses(mockCourses.map(migrateCourse));
     setHomework(mockHomework);
     setProfileState(defaultProfile);
     setSettingsState(defaultSettings);
+    setTimetableState({ starts: {} });
   }, []);
 
   const value = useMemo(
@@ -196,6 +237,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       homework,
       profile,
       settings,
+      timetable,
+      setTimetable,
+      importCourses,
       courseById,
       toggleDone,
       toggleReaction,
@@ -217,6 +261,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       homework,
       profile,
       settings,
+      timetable,
+      setTimetable,
+      importCourses,
       courseById,
       toggleDone,
       toggleReaction,

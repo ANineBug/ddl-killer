@@ -32,11 +32,12 @@ function nextDays() {
 
 export default function Upload() {
   const { theme } = useTheme();
-  const { courses, homework, addHomework, updateHomework, courseById } = useStore();
+  const { courses: allCourses, homework, addHomework, updateHomework, courseById, timetable } = useStore();
   const toast = useToast();
   // 带着 id 打开就是编辑自己上传过的作业，表单先填好原来的内容
   const { id } = useLocalSearchParams<{ id?: string }>();
   const editing = homework.find((h) => h.id === id && h.mine);
+  const courses = allCourses.filter((c) => c.id === editing?.courseId || (timetable.term ? c.source?.term === timetable.term : !c.source));
 
   const [courseId, setCourseId] = useState<string | null>(editing?.courseId ?? null);
   const [title, setTitle] = useState(editing?.title ?? '');
@@ -73,7 +74,7 @@ export default function Upload() {
     }
     addHomework(data);
     const course = courseById(courseId);
-    toast(`已发布，同课的 ${course?.members ?? 0} 位同学都能看到了`);
+    toast(course?.source ? '已保存在本机，联网共享功能尚未接入' : `已发布，同课的 ${course?.members ?? 0} 位同学都能看到了`);
   }
 
   return (

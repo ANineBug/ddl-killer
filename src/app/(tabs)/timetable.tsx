@@ -7,10 +7,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { haptic } from '@/components/haptic';
 import { TabScreen } from '@/components/TabScreen';
 import { TabScrollView } from '@/components/TabScroll';
-import { Press, Txt } from '@/components/ui';
-import { currentWeek, isoWeekday, weekdayNames } from '@/data/format';
+import { Chip, Field, Press, Txt } from '@/components/ui';
+import { isoWeekday, weekdayNames } from '@/data/format';
+import { inWeek, sessionWeeks, validMonday, weekFromStart } from '@/data/schedule';
 import { useStore } from '@/data/store';
-import { Course } from '@/data/types';
 import { withAlpha } from '@/theme/tokens';
 import { useTheme } from '@/theme/useTheme';
 
@@ -27,36 +27,43 @@ function roomOf(location: string) {
   return space > 0 ? location.slice(space + 1) : location;
 }
 
-function inWeek(c: Course, week: number) {
-  const { from, to, rule } = c.weeks;
-  if (week < from || week > to) return false;
-  if (rule === 'odd') return week % 2 === 1;
-  if (rule === 'even') return week % 2 === 0;
-  return true;
+export default function TimetableScreen() {
+  const { timetable } = useStore();
+  // 切换学期或修改开学日期时重新选择默认周，避免沿用另一个学期的页面状态。
+  return <TimetableContent key={`${timetable.term ?? 'manual'}-${timetable.term ? timetable.starts[timetable.term] ?? '' : ''}`} />;
 }
 
-export default function TimetableScreen() {
+function TimetableContent() {
   const { theme } = useTheme();
-  const { courses } = useStore();
+  const { courses: allCourses, timetable, setTimetable } = useStore();
+  const courses = allCourses.filter((c) => timetable.term ? c.source?.term === timetable.term : !c.source);
+  // 删空当前学期后仍保留切换入口，已有手动课程不会因此变得无法访问。
+  const terms = [...new Set([...allCourses.flatMap((c) => c.source ? [c.source.term] : []), ...(timetable.term ? [timetable.term] : [])])];
+  const start = timetable.term ? timetable.starts[timetable.term] : undefined;
+  const actualWeek = weekFromStart(start);
+  const maxWeek = Math.max(20, ...courses.flatMap((c) => c.weeks.map((w) => w.to)));
+  const current = Math.max(1, Math.min(maxWeek, actualWeek ?? (timetable.term ? 1 : 10)));
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
-  const [week, setWeek] = useState(currentWeek());
+  const [week, setWeek] = useState(current);
+  const [editingStart, setEditingStart] = useState(false);
+  const [draftStart, setDraftStart] = useState(start ?? '');
   const slide = useRef(new Animated.Value(0)).current;
   const fade = useRef(new Animated.Value(1)).current;
 
-  const visible = courses.filter((c) => inWeek(c, week));
+  const visible = courses.filter((c) => c.sessions.some((s) => inWeek(sessionWeeks(c, s), week)));
   // 一周七天都显示，周末没课也留着位置
   const days = [1, 2, 3, 4, 5, 6, 7];
   const gridW = Math.min(width - PAD * 2, MAX_W);
   const colW = (gridW - TIME_COL) / days.length;
   const today = isoWeekday(new Date());
-  const todayCol = week === currentWeek() ? days.indexOf(today) : -1;
+  const todayCol = actualWeek === week ? days.indexOf(today) : -1;
   // 1–12 节全部画出来
-  const periods = PERIODS;
+  const periods = Math.max(PERIODS, ...courses.flatMap((c) => c.sessions.map((s) => s.to)));
 
   // 翻周时，课表从翻动的方向滑进来
   function changeWeek(dir: 1 | -1) {
-    const next = Math.min(20, Math.max(1, week + dir));
+    const next = Math.min(maxWeek, Math.max(1, week + dir));
     if (next === week) return;
     haptic.select();
     setWeek(next);
@@ -73,22 +80,45 @@ export default function TimetableScreen() {
           <View style={styles.header}>
             <View>
               <Txt variant="caption" tone="sub">
-                {week === currentWeek() ? '本周' : week < currentWeek() ? '已经过去' : '提前看看'}
+                {actualWeek === undefined ? (timetable.term ? '按周查看' : '演示课表') : week === actualWeek ? '本周' : week < actualWeek ? '已经过去' : '提前看看'}
               </Txt>
               <Txt variant="display" style={{ marginTop: 4 }}>
                 课表
               </Txt>
             </View>
-            <Press onPress={() => router.push('/add-course')} style={[styles.round, { borderColor: theme.line }]}>
-              <Ionicons name="add" size={22} color={theme.text} />
-            </Press>
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              <Press accessibilityLabel="从教务导入课表" onPress={() => router.push('/import/swufe')} style={[styles.round, { borderColor: theme.line }]}>
+                <Ionicons name="download-outline" size={20} color={theme.text} />
+              </Press>
+              <Press accessibilityLabel="手动添加课程" onPress={() => router.push('/add-course')} style={[styles.round, { borderColor: theme.line }]}>
+                <Ionicons name="add" size={22} color={theme.text} />
+              </Press>
+            </View>
           </View>
+
+          {terms.length > 0 && <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12 }}>
+            {terms.map((term) => <Chip key={term} label={term} active={timetable.term === term} onPress={() => setTimetable({ term })} />)}
+            <Chip label="手动 / 演示" active={!timetable.term} onPress={() => setTimetable({ term: undefined })} />
+          </View>}
+
+          {!!timetable.term && <>
+            <Press onPress={() => setEditingStart((v) => !v)} style={{ marginTop: 12 }}>
+              <Txt variant="caption" tone="accent">{start ? `第一周周一：${start} · 修改` : '设置第一周日期，自动计算当前周'}</Txt>
+            </Press>
+            {editingStart && <>
+              <Field label="第一周的周一" placeholder="YYYY-MM-DD" value={draftStart} onChangeText={setDraftStart} />
+              <Chip label="保存日期" active={validMonday(draftStart)} onPress={() => {
+                if (timetable.term && validMonday(draftStart)) setTimetable({ starts: { ...timetable.starts, [timetable.term]: draftStart } });
+              }} />
+              {!!draftStart && !validMonday(draftStart) && <Txt variant="caption" tone="urgent">请填写有效的周一日期</Txt>}
+            </>}
+          </>}
 
           <View style={styles.weekRow}>
             <Press onPress={() => changeWeek(-1)} hitSlop={10}>
               <Ionicons name="chevron-back" size={18} color={theme.sub} />
             </Press>
-            <Press onPress={() => week !== currentWeek() && setWeek(currentWeek())}>
+            <Press onPress={() => setWeek(current)}>
               <Txt variant="label" style={{ marginHorizontal: 14 }}>
                 第 {week} 周
               </Txt>
@@ -131,15 +161,15 @@ export default function TimetableScreen() {
 
               {visible.flatMap((c) =>
                 c.sessions
-                  .filter((s) => days.includes(s.weekday))
-                  .map((s) => {
+                  .filter((s) => days.includes(s.weekday) && inWeek(sessionWeeks(c, s), week))
+                  .map((s, index) => {
                     const hue = theme.courseHues[c.hue % theme.courseHues.length];
                     const span = s.to - s.from + 1;
                     // 七天都显示后色块变窄，课名按色块高度能放几行就放几行
                     const nameLines = span === 1 ? 1 : Math.floor((span * ROW - 14 - 16 - (span >= 3 ? 12 : 0)) / 15);
                     return (
                       <Press
-                        key={`${c.id}-${s.weekday}-${s.from}`}
+                        key={`${c.id}-${index}-${s.weekday}-${s.from}`}
                         onPress={() => router.push(`/course/${c.id}`)}
                         style={[
                           styles.block,
@@ -179,7 +209,7 @@ export default function TimetableScreen() {
                             maxFontSizeMultiplier={BLOCK_FONT_SCALE}
                             numberOfLines={1}
                             style={{ fontSize: 9.5, lineHeight: 12, opacity: 0.8 }}>
-                            {c.teacher}
+                            {s.teacher || c.teacher}
                           </Txt>
                         )}
                       </Press>
@@ -194,8 +224,12 @@ export default function TimetableScreen() {
                     课表还是空的
                   </Txt>
                   <Txt variant="caption" tone="faint" style={{ marginTop: 6 }}>
-                    一键导入还在路上，先手动添加吧
+                    从教务导入，或手动添加课程
                   </Txt>
+                  <Press onPress={() => router.push('/import/swufe')} style={[styles.emptyButton, { borderColor: theme.accent, backgroundColor: theme.accentSoft }]}>
+                    <Ionicons name="download-outline" size={16} color={theme.accent} />
+                    <Txt variant="sub" tone="accent" style={{ marginLeft: 4 }}>从教务导入</Txt>
+                  </Press>
                   <Press
                     onPress={() => router.push('/add-course')}
                     style={[styles.emptyButton, { borderColor: theme.line, backgroundColor: theme.card }]}>
@@ -211,7 +245,7 @@ export default function TimetableScreen() {
 
           {courses.length > 0 && (
             <Txt variant="caption" tone="faint" style={{ marginTop: 18, textAlign: 'center' }}>
-              课表导入还在研究中，目前请点右上角手动添加
+              {timetable.term ? '同一课程的多个课块共用课程详情和作业' : '右上角可从教务导入课表，或手动添加课程'}
             </Txt>
           )}
         </View>
