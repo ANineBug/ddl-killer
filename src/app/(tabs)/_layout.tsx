@@ -2,9 +2,18 @@ import { Ionicons } from '@expo/vector-icons';
 import { BlurTargetView, BlurView } from 'expo-blur';
 import { router, usePathname } from 'expo-router';
 import { TabList, Tabs, TabSlot, TabTrigger, TabTriggerSlotProps } from 'expo-router/ui';
-import { ComponentProps, ComponentRef, Ref, RefObject, useEffect, useLayoutEffect, useRef } from 'react';
-import { Animated, Easing, Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { ComponentProps, ComponentRef, ReactNode, Ref, RefObject, useEffect, useLayoutEffect, useRef } from 'react';
+import { Animated, Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { GestureDetector, GestureStateManager, usePanGesture } from 'react-native-gesture-handler';
+import Reanimated, {
+  cancelAnimation,
+  Easing,
+  type SharedValue,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+} from 'react-native-reanimated';
+import { scheduleOnRN } from 'react-native-worklets';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { haptic } from '@/components/haptic';
@@ -42,11 +51,9 @@ export default function TabsLayout() {
                 renderFn={(descriptor) => {
                   const i = Math.max(0, tabs.findIndex((t) => t.name === descriptor.route.name));
                   return (
-                    <Animated.View
-                      key={descriptor.route.key}
-                      style={[StyleSheet.absoluteFill, { transform: [{ translateX: Animated.add(pager.x, i * width) }] }]}>
+                    <PagerPage key={descriptor.route.key} i={i} x={pager.x} width={width}>
                       {descriptor.render()}
-                    </Animated.View>
+                    </PagerPage>
                   );
                 }}
               />
@@ -71,113 +78,126 @@ export default function TabsLayout() {
 // 安卓原生滚动一旦开始会独占这次触摸，老的 PanResponder 就再也收不到消息，
 // 表现为"往下滑过以后不松手，再横着滑翻不了页"。
 // 方向由我们自己判断：手指还在上下走，就把起点挪到当前位置；
-// 从某个位置开始明显横着走了，才从那一刻接管成翻页
+// 从某个位置开始明显横着走了，才从那一刻接管成翻页。
+//
+// 手势回调和页面位置都跑在界面线程上（Reanimated 的 worklet）：手指移动 → 页面位置，
+// 中间不经过 JS 线程，JS 忙的时候也不会掉帧。只有震动、切换路由这些才回到 JS 去做
 function useSwipePager(width: number) {
   const pathname = usePathname();
   const index = Math.max(
     0,
     tabs.findIndex((t) => t.href === pathname),
   );
-  const indexRef = useRef(index);
-  indexRef.current = index;
-  const widthRef = useRef(width);
-  widthRef.current = width;
   // 整排页面的横向位置；在第 i 页时是 -i × 屏幕宽
-  const x = useRef(new Animated.Value(-index * width)).current;
+  const x = useSharedValue(-index * width);
+  // 界面线程上要用到的当前页和屏幕宽
+  const indexSV = useSharedValue(index);
+  const widthSV = useSharedValue(width);
+  // 这一次触摸的状态：从哪里开始算横向距离、是否已经接管成翻页
+  const anchorX = useSharedValue(0);
+  const anchorY = useSharedValue(0);
+  const engaged = useSharedValue(false);
   // 滑动切过去的那一页：位置已经由滑动动画带到了，不需要再跳
   const swipedTo = useRef<number | null>(null);
-  // 这一次触摸的状态：从哪里开始算横向距离、是否已经接管成翻页
-  const touch = useRef({ anchorX: 0, anchorY: 0, engaged: false });
 
   useLayoutEffect(() => {
+    indexSV.value = index;
+    widthSV.value = width;
     if (swipedTo.current === index) {
       swipedTo.current = null;
       return;
     }
-    x.stopAnimation();
-    x.setValue(-index * width);
-  }, [index, width, x]);
+    cancelAnimation(x);
+    x.value = -index * width;
+  }, [index, width, x, indexSV, widthSV]);
 
-  const native = Platform.OS !== 'web';
-  const base = () => -indexRef.current * widthRef.current;
-  const settle = () => Animated.spring(x, { toValue: base(), friction: 10, tension: 90, useNativeDriver: native }).start();
-
-  function release(dx: number, vx: number) {
-    const next = indexRef.current + (dx < 0 ? 1 : -1);
-    const farEnough = Math.abs(dx) > widthRef.current * 0.3 || (Math.abs(vx) > 0.4 && Math.abs(dx) > 20);
-    if (!farEnough || next < 0 || next >= tabs.length) {
-      settle();
-      return;
-    }
+  // 松手决定翻页时在 JS 这边做的事：震动、标记"这次是滑过来的"、底部选中块先滑过去
+  function onSwipeCommit(next: number) {
     haptic.select();
     swipedTo.current = next;
     markSwipeNavigation();
-    // 底部的选中块马上跟过去；页面滑到位以后再真正切换路由。
-    // 如果滑动途中就切换，网页上重新渲染会打断这段动画
     moveIndicator?.(next);
-    Animated.timing(x, {
-      toValue: -next * widthRef.current,
-      duration: 260,
-      easing: Easing.out(Easing.cubic),
-      useNativeDriver: native,
-    }).start(() => router.navigate(tabs[next].href));
+  }
+  function goTo(next: number) {
+    router.navigate(tabs[next].href);
   }
 
   const gesture = usePanGesture({
     // 什么时候开始翻页由我们自己决定（下面 onTouchesMove 里），不按默认的移动距离激活
     manualActivation: true,
-    runOnJS: true,
     onTouchesDown: (e) => {
+      'worklet';
       const t = e.allTouches[0];
       if (!t) return;
-      touch.current = { anchorX: t.absoluteX, anchorY: t.absoluteY, engaged: false };
+      anchorX.value = t.absoluteX;
+      anchorY.value = t.absoluteY;
+      engaged.value = false;
     },
     onTouchesMove: (e) => {
-      const s = touch.current;
+      'worklet';
       const t = e.allTouches[0];
-      if (!t || s.engaged || e.numberOfTouches !== 1) return;
-      const dx = t.absoluteX - s.anchorX;
-      const dy = t.absoluteY - s.anchorY;
+      if (!t || engaged.value || e.numberOfTouches !== 1) return;
+      const dx = t.absoluteX - anchorX.value;
+      const dy = t.absoluteY - anchorY.value;
       // 这一段主要在上下走：还在滚动页面，把起点挪到这里，之后的横向距离从这里重新算
       if (Math.abs(dy) > 10 && Math.abs(dy) >= Math.abs(dx)) {
-        s.anchorX = t.absoluteX;
-        s.anchorY = t.absoluteY;
+        anchorX.value = t.absoluteX;
+        anchorY.value = t.absoluteY;
         return;
       }
       // 从起点开始明显横着走了：接管成翻页
       if (Math.abs(dx) > 12 && Math.abs(dx) > Math.abs(dy) * 1.5) {
-        s.engaged = true;
-        s.anchorX = t.absoluteX;
-        x.stopAnimation();
+        engaged.value = true;
+        anchorX.value = t.absoluteX;
+        cancelAnimation(x);
         GestureStateManager.activate(e.handlerTag);
       }
     },
     onUpdate: (e) => {
-      if (!touch.current.engaged) return;
-      const dx = e.absoluteX - touch.current.anchorX;
-      const i = indexRef.current;
+      'worklet';
+      if (!engaged.value) return;
+      const dx = e.absoluteX - anchorX.value;
+      const i = indexSV.value;
       // 第一页再往右、最后一页再往左时，只给一点阻力感
       const atEdge = (dx > 0 && i === 0) || (dx < 0 && i === tabs.length - 1);
-      x.setValue(base() + dx * (atEdge ? 0.2 : 1));
+      x.value = -i * widthSV.value + dx * (atEdge ? 0.2 : 1);
     },
     onDeactivate: (e) => {
-      if (!touch.current.engaged) return;
-      touch.current.engaged = false;
-      if (e.canceled) {
-        settle();
+      'worklet';
+      if (!engaged.value) return;
+      engaged.value = false;
+      const i = indexSV.value;
+      const w = widthSV.value;
+      const dx = e.absoluteX - anchorX.value;
+      // 速度单位是"点 / 秒"
+      const vx = e.velocityX;
+      const next = i + (dx < 0 ? 1 : -1);
+      const farEnough = Math.abs(dx) > w * 0.3 || (Math.abs(vx) > 400 && Math.abs(dx) > 20);
+      if (e.canceled || !farEnough || next < 0 || next >= tabs.length) {
+        x.value = withTiming(-i * w, { duration: 240, easing: Easing.out(Easing.cubic) });
         return;
       }
-      // 速度单位是"点 / 秒"，换算成"点 / 毫秒"
-      release(e.absoluteX - touch.current.anchorX, e.velocityX / 1000);
+      scheduleOnRN(onSwipeCommit, next);
+      // 页面滑到位以后再真正切换路由
+      x.value = withTiming(-next * w, { duration: 260, easing: Easing.out(Easing.cubic) }, (finished) => {
+        if (finished) scheduleOnRN(goTo, next);
+      });
     },
     onFinalize: () => {
-      if (!touch.current.engaged) return;
-      touch.current.engaged = false;
-      settle();
+      'worklet';
+      if (!engaged.value) return;
+      engaged.value = false;
+      x.value = withTiming(-indexSV.value * widthSV.value, { duration: 240, easing: Easing.out(Easing.cubic) });
     },
   });
 
   return { x, gesture };
+}
+
+// 一页的外框：横向位置 = 自己的序号 × 屏幕宽 + 整体的滑动距离，在界面线程上算
+function PagerPage({ i, x, width, children }: { i: number; x: SharedValue<number>; width: number; children: ReactNode }) {
+  const style = useAnimatedStyle(() => ({ transform: [{ translateX: x.value + i * width }] }));
+  return <Reanimated.View style={[StyleSheet.absoluteFill, style]}>{children}</Reanimated.View>;
 }
 
 // 滑动松手时，让底部标签栏的选中块不用等页面切换完就先滑过去
