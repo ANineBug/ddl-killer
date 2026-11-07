@@ -146,7 +146,7 @@ function useSwipePager(width: number) {
         return;
       }
       // 从起点开始明显横着走了：接管成翻页
-      if (Math.abs(dx) > 12 && Math.abs(dx) > Math.abs(dy) * 1.5) {
+      if (Math.abs(dx) > SWIPE_START && Math.abs(dx) > Math.abs(dy) * SWIPE_RATIO) {
         engaged.value = true;
         anchorX.value = t.absoluteX;
         cancelAnimation(x);
@@ -193,6 +193,11 @@ function useSwipePager(width: number) {
 
   return { x, gesture };
 }
+
+// 手指要横着走多远、走得多"平"才算翻页：横向超过 20 点，并且横向至少是竖向的 2 倍
+// （和水平方向的夹角小于约 27°）。斜着往下滑、或者滑动时手指有点歪，都不会误翻
+const SWIPE_START = 20;
+const SWIPE_RATIO = 2;
 
 // 一页的外框：横向位置 = 自己的序号 × 屏幕宽 + 整体的滑动距离，在界面线程上算
 function PagerPage({ i, x, width, children }: { i: number; x: SharedValue<number>; width: number; children: ReactNode }) {
