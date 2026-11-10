@@ -1,0 +1,331 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>作业 · 业务逻辑</title>
+<style>
+  :root {
+    --bg: #faf9f5; --card: #ffffff; --line: #e8e5db; --text: #1f1e1d; --sub: #73716a; --faint: #a9a69c;
+    --serif: "Noto Serif SC", "Source Han Serif SC", "Songti SC", STSong, serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.5 system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; display: flex; flex-direction: column; }
+  header { padding: 16px 20px 12px; border-bottom: 1px solid var(--line); display: flex; flex-wrap: wrap; align-items: center; gap: 10px 18px; }
+  h1 { font-family: var(--serif); font-weight: 600; font-size: 22px; letter-spacing: 1px; margin: 0; }
+  .lead { color: var(--sub); font-size: 13px; margin: 0; flex: 1 1 260px; }
+  .tools { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  button { font: inherit; font-size: 13px; cursor: pointer; border: 1px solid var(--line); background: var(--card); color: var(--text); border-radius: 999px; padding: 5px 12px; }
+  button:hover { border-color: var(--faint); }
+  .legend { display: flex; gap: 12px; color: var(--sub); font-size: 12px; align-items: center; }
+  .chip { display: inline-block; font-size: 11px; line-height: 16px; padding: 0 7px; border-radius: 999px; margin-left: 6px; white-space: nowrap; vertical-align: 1px; }
+  .chip.todo { border: 1px dashed #b58a3c; color: #96702a; }
+  .chip.later { background: #eeebe3; color: var(--sub); }
+
+  #viewport { flex: 1; overflow: auto; }
+  #stage { position: relative; margin: 28px; transform-origin: 0 0; }
+  #links { position: absolute; left: 0; top: 0; overflow: visible; pointer-events: none; }
+  /* 宽度按内容算，不受画布边缘挤压（否则靠右的节点会被压成窄条） */
+  .node { position: absolute; width: max-content; }
+  .node.has-kids { cursor: pointer; }
+
+  /* 中心 */
+  .d0 { background: var(--text); color: var(--bg); font-family: var(--serif); font-size: 20px; font-weight: 600; letter-spacing: 2px; padding: 14px 22px; border-radius: 18px; text-align: center; }
+  .d0 small { display: block; font-family: system-ui, sans-serif; font-size: 11px; font-weight: 400; letter-spacing: 0; opacity: .7; margin-top: 2px; }
+  /* 主干 */
+  .d1 { color: #fff; font-weight: 600; font-size: 15px; padding: 8px 16px; border-radius: 999px; white-space: nowrap; background: var(--c); }
+  /* 二级 */
+  .d2 { background: var(--card); border: 1px solid var(--line); border-left: 3px solid var(--c); border-radius: 10px; padding: 6px 12px; font-weight: 600; max-width: 230px; }
+  .left .d2 { border-left: 1px solid var(--line); border-right: 3px solid var(--c); }
+  /* 三级：细节 */
+  .d3 { font-size: 13px; color: #3d3c39; padding: 2px 0 2px 12px; max-width: 300px; border-left: 2px solid var(--cs); }
+  .left .d3 { padding: 2px 12px 2px 0; border-left: none; border-right: 2px solid var(--cs); text-align: right; }
+  .d3 b { font-weight: 600; color: var(--text); }
+  .count { font-size: 11px; font-weight: 400; margin-left: 6px; opacity: .75; }
+  .side-cap { position: absolute; font-family: var(--serif); color: var(--faint); font-size: 13px; letter-spacing: 2px; white-space: nowrap; }
+  footer { padding: 8px 20px; border-top: 1px solid var(--line); color: var(--faint); font-size: 12px; }
+  @media print { header .tools, footer { display: none; } #viewport { overflow: visible; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>作业 · 业务逻辑</h1>
+  <p class="lead">右边讲「人和信任」，左边讲「内容怎么流转」。点任意一个节点可以收起或展开。</p>
+  <div class="tools">
+    <span class="legend"><span><span class="chip todo" style="margin:0">待定</span> 还没拍板</span><span><span class="chip later" style="margin:0">以后</span> 这一版不做</span></span>
+    <button id="btn-main">只看主干</button>
+    <button id="btn-mid">展开到二级</button>
+    <button id="btn-all">全部展开</button>
+    <button id="btn-out">缩小</button>
+    <button id="btn-in">放大</button>
+    <button id="btn-fit">适应窗口</button>
+  </div>
+</header>
+<div id="viewport"><div id="stage"><svg id="links"></svg></div></div>
+<footer>整理自 2026 年 11 月的几轮讨论 · 规则以这张图为准，实现进度见仓库 README</footer>
+
+<script>
+// t：文字（可带 <b>）；k：子节点；tag：'todo' 待定 / 'later' 以后
+const T = (t, k, tag) => ({ t, k: k || [], tag });
+const todo = (t, k) => T(t, k, 'todo');
+const later = (t, k) => T(t, k, 'later');
+
+const RIGHT = [
+  { c: '#c2603e', t: '定位与原则', k: [
+    T('一句话', [T('同学上传作业，同一个教学班的人都能看到，到点提醒 DDL'), T('目前只在西财一所学校试点')]),
+    T('四条原则', [
+      T('<b>不靠审核</b>：让错误容易被发现、改起来便宜'),
+      T('<b>宁早勿晚</b>：宁可多提醒，也不漏提醒'),
+      T('<b>都能撤回</b>：所有改动留记录，可以用反向提议撤回'),
+      T('<b>少碰隐私</b>：功能用不上的信息一律不取'),
+    ]),
+  ]},
+  { c: '#6f86a3', t: '用户与身份', k: [
+    T('游客', [T('不注册，数据只在自己手机上'), T('可以手动加课、记自己的作业、设提醒'), T('进不了共享的班')]),
+    T('邮箱注册', [
+      T('只开放 <b>163、QQ、Gmail</b>（背后都绑手机号，开小号有成本）'),
+      T('Gmail 保存前去掉点和 + 号后面的部分'),
+      T('验证码：60 秒发一次，10 分钟过期，同一 IP 每天限量'),
+    ]),
+    T('身份 = 邮箱账号', [T('不取学号、不取姓名'), T('贡献值跟着账号走')]),
+    T('教务导入', [T('在自己手机上完成，只上传课程安排'), T('作用：把课表填对、进对班，并立刻转正')]),
+    T('已经接受的风险', [T('一个人用多个邮箱开多个身份'), T('被扣成负分后换邮箱重来'), T('改 app 伪造导入：不防')]),
+  ]},
+  { c: '#7d9a84', t: '档位与权重', k: [
+    T('怎么算', [T('只看<b>在这个班里</b>的贡献值'), T('教学班只存在一学期，新学期自然从头开始'), T('掉到负数：降回新同学')]),
+    T('新同学 · 权重 0', [
+      T('注册了、还没导入教务，且不到 20 分'),
+      T('能看、能聊；每个班每天最多传 3 条，正常显示'),
+      T('点确认和同意不计票'),
+      T('传的作业要有 1 位正式同学确认后，才推送提醒'),
+    ]),
+    T('同学 · 权重 1', [T('导入教务，或贡献值 ≥ 20（传对两条）')]),
+    T('热心同学 · 权重 1.5', [T('贡献值 ≥ 60')]),
+    T('靠谱同学 · 权重 2', [T('贡献值 ≥ 120，封顶'), T('再高也没有一票决定权')]),
+  ]},
+  { c: '#b89b5e', t: '贡献值与排行榜', k: [
+    T('加分', [T('上传的作业达到「已确认」 <b>+10</b>'), T('发起的纠错被采纳 <b>+5</b>'), T('发起的更新被采纳 <b>+3</b>')]),
+    T('扣分', [T('自己上传的作业被别人纠错 <b>−5</b>')]),
+    T('不加不减', [T('自己纠正自己'), T('重复上传被合并'), T('提议被否决（不罚，免得不敢指出问题）'), T('单纯点确认（防互相刷分）')]),
+    T('什么时候发分', [T('其他同学的确认权重过线才发'), T('上传者单方面采纳：改动生效，但不发分')]),
+    T('班级榜', [T('本学期在这个班挣的分'), T('它决定档位和权重')]),
+    T('总榜', [T('所有班、所有学期累计'), T('只展示，不影响任何权重'), T('只显示前 50 名和自己的名次')]),
+  ]},
+  { c: '#8a8f98', t: '隐私与运营', k: [
+    T('只取', [T('课程安排：课程、时间、地点、老师、教学班 id')]),
+    T('不取', [T('学号、姓名、学院专业'), T('成绩、身份证号、照片、联系方式'), T('教务密码：只在学校自己的登录页里输入')]),
+    T('部署', [T('日本服务器，不备案'), T('APK 直接下载安装，不上国内应用商店'), T('邮件服务：开发阶段先用 Resend')]),
+    T('管理手段', [T('删消息、删作业'), T('把某个账号降回新同学')]),
+    later('这一版不做', [T('举报和禁言'), T('厂商推送通道'), T('同学担保转正'), T('照片上传'), T('第二期：论坛、签到、打赏')]),
+  ]},
+];
+
+const LEFT = [
+  { c: '#5f9593', t: '课表与教学班', k: [
+    T('教学班', [T('用教务的<b>教学班 id</b> 唯一确定'), T('班级人数 = 这个班里<b>有权重</b>的同学数')]),
+    T('加课方式', [T('教务一键导入：自动进对班'), todo('手动加课：搜索并加入已有的班'), T('私人课程：只有自己看得到')]),
+    T('课表', [T('周一到周日，第 1–12 节'), T('没课时显示空状态和添加入口')]),
+  ]},
+  { c: '#9484b0', t: '作业的一生', k: [
+    T('上传', [
+      T('先列出这门课还没截止的作业：是不是已经有人传了？'),
+      T('必填：课程、标题、DDL、提交方式'),
+      T('DDL 可以选「下次课前」或「待定」'),
+      T('来源：课堂口头 / 学习通 / 群通知'),
+      T('标记：选做（非必做）/ 小组作业'),
+      T('只有结构化字段和文字'),
+    ]),
+    T('状态', [
+      T('<b>待确认</b>：显示「N 人上传」，照常提醒'),
+      T('<b>已确认</b>：确认权重过线'),
+      T('<b>有争议</b>：有提议还没定'),
+      T('<b>已延期 / 已取消</b>：老师改了；取消的划掉保留'),
+      T('<b>已截止</b>：归档'),
+    ]),
+    T('每个人自己的操作', [T('标记完成'), T('「与我无关」：只对自己隐藏'), T('单独调整这条的提醒'), T('三个回应：对、赞、下雨的小乌云')]),
+    T('被确认以后', [T('作业归全班，上传者不能单方面删'), T('上传者改关键内容也要走提议'), T('内容变了，旧确认标注「此作业已修改过，该确认是修改前的确认」')]),
+  ]},
+  { c: '#b8727a', t: '提议与同意', k: [
+    T('一个入口：「有问题」', [T('<b>内容不对</b> → 纠错（上传者扣分）'), T('<b>老师改了</b> → 更新（谁都不扣分）'), T('<b>重复了</b> → 合并')]),
+    T('怎么生效', [T('上传者采纳：立刻生效'), T('否则：同意的权重过线'), T('至少要 2 个不同的人参与'), T('界面只有一个「同意」按钮和「还差 N 人」')]),
+    T('过线标准（占班级人数）', [
+      T('作业已确认 <b>10%</b>，最少 2，最多 5'),
+      T('纠错 / 更新 <b>10%</b>，最少 2，最多 5'),
+      T('把 DDL 往后改 <b>15%</b>，最少 3，最多 8'),
+      T('重复 / 撤销重复 <b>5%</b>，最少 2，最多 3'),
+    ]),
+    T('兜底规则', [T('有争议时按<b>最早</b>的时间提醒'), T('同一条作业每人同时只能有一条未决提议'), T('到截止时间还没定：自动关闭')]),
+    T('重复作业', [
+      T('列表里叠成一摞：「可能重复 · 2 条」'),
+      T('详情里有「可能与这条作业重复的作业」'),
+      T('合并后保留更早的一条，两边的确认加在一起'),
+      T('可以提「不是重复」拆回两条'),
+      todo('合并后只留小标记「已合并 1 条」'),
+    ]),
+  ]},
+  { c: '#6f86a3', t: '班级聊天室', k: [
+    T('规则', [T('每个教学班一个'), T('只有文字，5 秒一条'), T('用来问「有没有作业」「这条对不对」')]),
+    T('和作业连起来', [T('作业卡片可以转发进聊天室'), T('作业详情里点「去讨论」'), T('聊天不改数据：消息旁边有「发起纠错」')]),
+  ]},
+  { c: '#c2603e', t: '提醒', k: [
+    T('按时间的提醒', [T('默认：截止前 1 天、前 3 小时（在「我的」里开关）'), T('每条作业可以单独调'), T('手机本地通知；可选写入系统日历')]),
+    T('按事件的提醒', [T('新作业、DDL 被改、已完成的作业有变动'), T('打开 app 时同步'), T('邮件：每天汇总一封')]),
+    T('告知同学：「提醒可能不准时，以下内容你需要知道」', [
+      T('原因：手机为了省电，会清掉 app 定好的提醒'),
+      T('方案一：开「自启动」和「电池不限制」，可发测试提醒'),
+      T('方案二：邮件提醒（QQ 邮箱可以在微信里收到）'),
+      T('两个可以同时开'),
+    ]),
+    T('DDL 被改时', [T('通知所有人'), T('显示「原 11/15 → 现 11/14，谁改的」')]),
+  ]},
+];
+
+const GAP_X = [64, 44, 30];   // 中心→主干、主干→二级、二级→三级的横向间距
+const GAP_Y = [22, 12, 5];    // 同一层兄弟之间的纵向间距
+const stage = document.getElementById('stage');
+const svg = document.getElementById('links');
+let uid = 0;
+
+function build(data, side, depth, color) {
+  const n = { id: uid++, side, depth, color: data.c || color, data, open: true };
+  n.kids = (data.k || []).map((k) => build(k, side, depth + 1, n.color));
+  const el = document.createElement('div');
+  el.className = `node d${depth} ${side}${n.kids.length ? ' has-kids' : ''}`;
+  el.style.setProperty('--c', n.color);
+  el.style.setProperty('--cs', n.color + '66');
+  el.innerHTML = data.t + (data.tag ? `<span class="chip ${data.tag}">${data.tag === 'todo' ? '待定' : '以后'}</span>` : '') + (n.kids.length ? '<span class="count"></span>' : '');
+  if (n.kids.length) el.addEventListener('click', () => { n.open = !n.open; layout(); });
+  stage.appendChild(el);
+  n.el = el;
+  return n;
+}
+
+const rootEl = document.createElement('div');
+rootEl.className = 'node d0';
+rootEl.innerHTML = '作业<small>同学互助的作业与 DDL 提醒</small>';
+stage.appendChild(rootEl);
+const capR = Object.assign(document.createElement('div'), { className: 'side-cap', textContent: '人 和 信 任' });
+const capL = Object.assign(document.createElement('div'), { className: 'side-cap', textContent: '内 容 怎 么 流 转' });
+stage.append(capR, capL);
+
+const right = RIGHT.map((d) => build(d, 'right', 1));
+const left = LEFT.map((d) => build(d, 'left', 1));
+
+const all = (n, f) => { f(n); n.kids.forEach((k) => all(k, f)); };
+const visibleKids = (n) => (n.open ? n.kids : []);
+
+// 一个节点连同它展开的子孙，总共要占多高
+function measure(n) {
+  n.w = n.el.offsetWidth; n.h = n.el.offsetHeight;
+  const kids = visibleKids(n);
+  kids.forEach(measure);
+  const gap = GAP_Y[n.depth] ?? 5;
+  n.kidsH = kids.reduce((s, k) => s + k.span, 0) + Math.max(0, kids.length - 1) * gap;
+  n.span = Math.max(n.h, n.kidsH);
+}
+// 从上往下排：节点自己放在它那一摞子节点的正中间
+function place(n, top, edgeX) {
+  const dir = n.side === 'right' ? 1 : -1;
+  n.x = dir === 1 ? edgeX : edgeX - n.w;
+  n.y = top + (n.span - n.h) / 2;
+  const kids = visibleKids(n);
+  const gap = GAP_Y[n.depth] ?? 5;
+  let y = top + (n.span - n.kidsH) / 2;
+  const childEdge = dir === 1 ? n.x + n.w + GAP_X[n.depth] : n.x - GAP_X[n.depth];
+  kids.forEach((k) => { place(k, y, childEdge); y += k.span + gap; });
+}
+
+function layout() {
+  [...right, ...left].forEach((b) => all(b, (n) => {
+    const shown = isShown(n);
+    n.el.style.display = shown ? '' : 'none';
+    const c = n.el.querySelector('.count');
+    if (c) c.textContent = n.open ? '' : `＋${n.kids.length}`;
+  }));
+  const sideH = (list) => { list.forEach(measure); return list.reduce((s, b) => s + b.span, 0) + (list.length - 1) * GAP_Y[0]; };
+  const hR = sideH(right), hL = sideH(left);
+  const H = Math.max(hR, hL, rootEl.offsetHeight) + 40;
+  const rw = rootEl.offsetWidth, rh = rootEl.offsetHeight;
+
+  // 先按"中心在 x=0"排，再整体平移到正坐标
+  let y = (H - hR) / 2;
+  right.forEach((b) => { place(b, y, rw / 2 + GAP_X[0]); y += b.span + GAP_Y[0]; });
+  y = (H - hL) / 2;
+  left.forEach((b) => { place(b, y, -rw / 2 - GAP_X[0]); y += b.span + GAP_Y[0]; });
+
+  let minX = -rw / 2, maxX = rw / 2;
+  [...right, ...left].forEach((b) => all(b, (n) => { if (isShown(n)) { minX = Math.min(minX, n.x); maxX = Math.max(maxX, n.x + n.w); } }));
+  const ox = -minX;
+  const W = maxX - minX;
+  stage.style.width = W + 'px'; stage.style.height = H + 'px';
+  svg.setAttribute('width', W); svg.setAttribute('height', H);
+
+  rootEl.style.left = ox - rw / 2 + 'px'; rootEl.style.top = (H - rh) / 2 + 'px';
+  capR.style.left = ox + rw / 2 + 14 + 'px'; capR.style.top = '0px';
+  capL.style.left = ox - rw / 2 - 14 - capL.offsetWidth + 'px'; capL.style.top = '0px';
+
+  let paths = '';
+  const link = (x1, y1, x2, y2, color, wid) => {
+    const mx = (x1 + x2) / 2;
+    paths += `<path d="M${x1} ${y1}C${mx} ${y1} ${mx} ${y2} ${x2} ${y2}" fill="none" stroke="${color}" stroke-width="${wid}" stroke-linecap="round"/>`;
+  };
+  const draw = (n) => {
+    n.el.style.left = n.x + ox + 'px'; n.el.style.top = n.y + 'px';
+    const dir = n.side === 'right' ? 1 : -1;
+    visibleKids(n).forEach((k) => {
+      const x1 = dir === 1 ? n.x + n.w : n.x, x2 = dir === 1 ? k.x : k.x + k.w;
+      link(x1 + ox, n.y + n.h / 2, x2 + ox, k.y + k.h / 2, n.color + (n.depth === 1 ? 'cc' : '88'), n.depth === 1 ? 1.6 : 1.2);
+      draw(k);
+    });
+  };
+  [...right, ...left].forEach((b) => {
+    const dir = b.side === 'right' ? 1 : -1;
+    link(ox + dir * rw / 2, H / 2, (dir === 1 ? b.x : b.x + b.w) + ox, b.y + b.h / 2, b.color, 2.2);
+    draw(b);
+  });
+  svg.innerHTML = paths;
+  applyZoom();
+}
+
+function isShown(n) {
+  // 所有祖先都展开才显示
+  let ok = true;
+  const walk = (list, parentOpen) => list.forEach((x) => { if (x === n) ok = parentOpen; else walk(x.kids, parentOpen && x.open); });
+  walk([...right, ...left], true);
+  return ok;
+}
+
+let zoom = 1;
+function applyZoom() {
+  stage.style.transform = `scale(${zoom})`;
+  stage.style.marginRight = stage.offsetWidth * (zoom - 1) + 28 + 'px';
+  stage.style.marginBottom = stage.offsetHeight * (zoom - 1) + 28 + 'px';
+}
+function fit() {
+  const vp = document.getElementById('viewport');
+  zoom = Math.min(1, (vp.clientWidth - 56) / stage.offsetWidth, (vp.clientHeight - 56) / stage.offsetHeight);
+  zoom = Math.max(zoom, 0.25);
+  applyZoom();
+}
+function centerRoot() {
+  const vp = document.getElementById('viewport');
+  const r = rootEl.getBoundingClientRect(), v = vp.getBoundingClientRect();
+  vp.scrollLeft += r.left + r.width / 2 - (v.left + v.width / 2);
+  vp.scrollTop += r.top + r.height / 2 - (v.top + v.height / 2);
+}
+const setDepth = (d) => { [...right, ...left].forEach((b) => all(b, (n) => { n.open = n.depth < d; })); layout(); centerRoot(); };
+
+document.getElementById('btn-main').onclick = () => setDepth(1);
+document.getElementById('btn-mid').onclick = () => setDepth(2);
+document.getElementById('btn-all').onclick = () => setDepth(3);
+document.getElementById('btn-in').onclick = () => { zoom = Math.min(2, zoom + 0.1); applyZoom(); };
+document.getElementById('btn-out').onclick = () => { zoom = Math.max(0.25, zoom - 0.1); applyZoom(); };
+document.getElementById('btn-fit').onclick = () => { fit(); centerRoot(); };
+window.addEventListener('resize', layout);
+
+// 字体加载完文字宽度会变，等一下再排
+(document.fonts ? document.fonts.ready : Promise.resolve()).then(() => { setDepth(2); fit(); centerRoot(); });
+</script>
+</body>
+</html>
