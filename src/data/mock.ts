@@ -80,6 +80,23 @@ export const mockHomework: Homework[] = [
     myReactions: [],
     done: false,
     hasPhoto: true,
+    possibleDuplicates: ['h7'],
+  },
+  // 演示用：另一个同学又传了一遍同样的作业，有人标了「重复了」，还在投票
+  {
+    id: 'h7',
+    courseId: 'prob',
+    title: '课本 87 页 3、5、7、12 题',
+    detail: '第三章课后题，周三上课前交。',
+    due: dayAt(0, 23, 59),
+    submit: '纸质',
+    uploader: '阿哲',
+    uploadedAt: hoursAgo(5),
+    reactions: { confirm: 3, thumbs: 0, cry: 1 },
+    myReactions: [],
+    done: false,
+    hasPhoto: false,
+    possibleDuplicates: ['h1'],
   },
   {
     id: 'h2',

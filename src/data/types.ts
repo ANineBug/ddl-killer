@@ -59,6 +59,10 @@ export type Homework = {
   reminders?: Reminder[];
   // 是不是我自己上传的；只有自己上传的才能编辑和删除
   mine?: boolean;
+  // 有人点了「重复了」、还在投票：可能和哪几条是同一份作业。列表里会叠成一叠
+  possibleDuplicates?: string[];
+  // 我对"是不是重复"投的票：true 是重复，false 不是，没投过为空
+  dupVote?: boolean;
 };
 
 export type Profile = {

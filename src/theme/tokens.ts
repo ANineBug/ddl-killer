@@ -6,6 +6,8 @@ export type Theme = {
   bg: string[];
   card: string;
   cardEdge: string;
+  // 一叠卡片后面露出来的两层，比卡片略深一点才看得出是"压在下面"
+  stack: [string, string];
   // 卡片是否用毛玻璃
   glass: boolean;
   text: string;
@@ -39,6 +41,7 @@ export const themes: Record<ThemeName, Theme> = {
     bg: ['#2c2e40', '#3b3448', '#4a3d4a'],
     card: 'rgba(255,255,255,0.07)',
     cardEdge: 'rgba(255,255,255,0.08)',
+    stack: ['rgba(255,255,255,0.05)', 'rgba(255,255,255,0.03)'],
     glass: true,
     text: '#eeeaf2',
     sub: '#a49eae',
@@ -61,6 +64,7 @@ export const themes: Record<ThemeName, Theme> = {
     bg: ['#faf9f5'],
     card: '#ffffff',
     cardEdge: '#e8e5db',
+    stack: ['#f4f2ec', '#eeebe3'],
     glass: false,
     text: '#1f1e1d',
     sub: '#73716a',

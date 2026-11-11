@@ -20,6 +20,8 @@ type StoreValue = {
   courseById: (id: string) => Course | undefined;
   toggleDone: (id: string) => void;
   toggleReaction: (id: string, key: ReactionKey) => void;
+  // 对"这几条是不是同一份作业"投票；再点一次同样的就是撤回
+  voteDuplicate: (id: string, agree: boolean) => void;
   // 传 undefined 表示恢复默认提醒
   setReminders: (id: string, reminders: Reminder[] | undefined) => void;
   addHomework: (h: NewHomework) => Homework;
@@ -112,6 +114,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         };
       }),
     );
+  }, []);
+
+  // 现在只记在手机上；接上后端后改成调用投票接口，够人数由服务器合并
+  const voteDuplicate = useCallback((id: string, agree: boolean) => {
+    setHomework((list) => list.map((h) => (h.id === id ? { ...h, dupVote: h.dupVote === agree ? undefined : agree } : h)));
   }, []);
 
   const setReminders = useCallback((id: string, reminders: Reminder[] | undefined) => {
@@ -243,6 +250,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       courseById,
       toggleDone,
       toggleReaction,
+      voteDuplicate,
       setReminders,
       addHomework,
       updateHomework,
@@ -267,6 +275,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       courseById,
       toggleDone,
       toggleReaction,
+      voteDuplicate,
       setReminders,
       addHomework,
       updateHomework,
