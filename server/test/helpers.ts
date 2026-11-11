@@ -47,6 +47,7 @@ export async function setup() {
   }
 
   return {
+    app,
     ctx,
     db,
     mails,

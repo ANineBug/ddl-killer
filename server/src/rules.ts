@@ -59,6 +59,7 @@ export const CODE_RESEND_MS = 60_000; // 验证码 60 秒内不能重发
 export const CODE_TTL_MS = 10 * 60_000; // 验证码 10 分钟有效
 export const CODE_MAX_ATTEMPTS = 5; // 输错 5 次作废
 export const CODE_IP_PER_HOUR = 10; // 同一个 IP 每小时最多发 10 次码
+export const AVATAR_MAX_BYTES = 2 * 1024 * 1024; // 头像最大 2MB
 
 // ---------- 邮箱 ----------
 

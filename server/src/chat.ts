@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+import { userRef } from './avatar.ts';
 import { classWeights, requireMember } from './classes.ts';
 import { type Ctx, HttpError, notFound, type User } from './context.ts';
 import type { Db } from './db.ts';
@@ -16,6 +17,7 @@ type MsgRow = {
   id: number;
   user_id: number;
   nickname: string;
+  avatar_version: number;
   text: string;
   homework_id: number | null;
   hw_title: string | null;
@@ -23,7 +25,7 @@ type MsgRow = {
   created_at: Date;
 };
 
-const SELECT = `select m.id, m.user_id, u.nickname, m.text, m.homework_id, h.title hw_title, h.due hw_due, m.created_at
+const SELECT = `select m.id, m.user_id, u.nickname, u.avatar_version, m.text, m.homework_id, h.title hw_title, h.due hw_due, m.created_at
   from messages m join users u on u.id = m.user_id left join homework h on h.id = m.homework_id`;
 
 // 注意传进来的 db：在事务里调用时必须用事务的 db，否则会在事务外再开一次查询（PGlite 上会互相等死）
@@ -33,7 +35,7 @@ async function shape(db: Db, classId: number, rows: MsgRow[]) {
     const tier = map.get(m.user_id)?.tier ?? 'newbie';
     return {
       id: m.id,
-      user: { id: m.user_id, nickname: m.nickname, tier, tierName: TIER_NAMES[tier] },
+      user: { ...userRef(m.user_id, m.nickname, m.avatar_version), tier, tierName: TIER_NAMES[tier] },
       text: m.text,
       homework: m.homework_id ? { id: m.homework_id, title: m.hw_title, due: m.hw_due } : null,
       createdAt: m.created_at,

@@ -79,6 +79,8 @@ test/                     测试，按业务场景写的，可以当规则说明
 | POST | `/auth/logout` | 登录 | 退出 |
 | GET / PATCH | `/me` | 登录 | 我的信息和加入的班 / 改昵称 |
 | POST | `/me/import` | 登录 | 导入教务课表 `{ term, courses }` |
+| PUT / DELETE | `/me/avatar` | 登录 | 上传头像（请求体就是图片，JPG/PNG/WebP，最大 2MB）/ 删掉头像 |
+| GET | `/avatars/:id?v=` | 所有人 | 取头像图片。返回里的每个人都带 `avatar` 地址，没传过是 `null` |
 | POST | `/classes/resolve` | 所有人 | 游客用：课表对应哪些已有的班（不建班、不加入） |
 | GET | `/classes/search?term=&q=` | 所有人 | 按课名或老师搜班 |
 | GET | `/classes/:id` | 所有人 | 班级信息 |

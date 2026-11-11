@@ -30,6 +30,7 @@ export type User = {
   id: number;
   email: string;
   nickname: string;
+  avatar_version: number;
   demoted: boolean;
   is_admin: boolean;
 };

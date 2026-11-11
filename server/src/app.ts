@@ -1,7 +1,9 @@
 import { type Context, Hono } from 'hono';
+import { bodyLimit } from 'hono/body-limit';
 import { z } from 'zod';
 
 import { logout, requestCode, userFromToken, verifyCode } from './auth.ts';
+import { deleteAvatar, getAvatar, setAvatar, userRef } from './avatar.ts';
 import { classBoard, globalBoard } from './board.ts';
 import { adminDeleteMessage, listMessages, MessageIn, sendMessage } from './chat.ts';
 import { getClass, ImportIn, importTimetable, joinClass, leaveClass, myClasses, resolveTimetable, searchClasses } from './classes.ts';
@@ -24,6 +26,7 @@ import {
   voteProposal,
   withdrawProposal,
 } from './homework.ts';
+import { AVATAR_MAX_BYTES } from './rules.ts';
 
 type Env = { Variables: { user: User | null; token: string | undefined } };
 
@@ -83,7 +86,7 @@ export function createApp(ctx: Ctx) {
   app.post('/auth/verify', async (c) => {
     const { email, code } = await body(c, z.object({ email: z.string(), code: z.string() }));
     const r = await verifyCode(ctx, email, code);
-    return c.json({ token: r.token, created: r.created, user: { id: r.user.id, nickname: r.user.nickname } });
+    return c.json({ token: r.token, created: r.created, user: userRef(r.user.id, r.user.nickname, r.user.avatar_version) });
   });
   app.post('/auth/logout', async (c) => {
     const token = c.get('token');
@@ -94,7 +97,29 @@ export function createApp(ctx: Ctx) {
   // ---------- 我 ----------
   app.get('/me', async (c) => {
     const u = need(c);
-    return c.json({ id: u.id, nickname: u.nickname, classes: await myClasses(ctx, u) });
+    return c.json({ ...userRef(u.id, u.nickname, u.avatar_version), classes: await myClasses(ctx, u) });
+  });
+
+  // 头像：请求体直接是图片本身（Content-Type: image/jpeg 等），最大 2MB。
+  // 建议 app 先裁成正方形、压到 512 像素左右再传，省流量，也显示得快
+  app.put(
+    '/me/avatar',
+    bodyLimit({
+      maxSize: AVATAR_MAX_BYTES,
+      onError: () => {
+        throw new HttpError(413, 'too_large', '头像最大 2MB');
+      },
+    }),
+    async (c) => {
+      const u = need(c);
+      return c.json(await setAvatar(ctx, u, new Uint8Array(await c.req.arrayBuffer())));
+    },
+  );
+  app.delete('/me/avatar', async (c) => c.json(await deleteAvatar(ctx, need(c))));
+  app.get('/avatars/:id', async (c) => {
+    const a = await getAvatar(ctx, idParam(c));
+    // 地址里带着版本号，换头像地址就变，所以可以放心让手机缓存很久
+    return c.body(a.data as Uint8Array<ArrayBuffer>, 200, { 'Content-Type': a.mime, 'Cache-Control': 'public, max-age=31536000, immutable' });
   });
   app.patch('/me', async (c) => {
     const u = need(c);

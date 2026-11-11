@@ -80,11 +80,11 @@ export async function verifyCode(ctx: Ctx, rawEmail: string, code: string) {
 
   return ctx.db.tx(async (db) => {
     await db.query('delete from email_codes where email = $1', [email]);
-    let user = await db.one<User>('select id, email, nickname, demoted, is_admin from users where email = $1', [email]);
+    let user = await db.one<User>('select id, email, nickname, avatar_version, demoted, is_admin from users where email = $1', [email]);
     const created = !user;
     if (!user) {
       user = (await db.one<User>(
-        'insert into users (email, nickname, created_at) values ($1, $2, $3) returning id, email, nickname, demoted, is_admin',
+        'insert into users (email, nickname, created_at) values ($1, $2, $3) returning id, email, nickname, avatar_version, demoted, is_admin',
         [email, defaultNickname(), now],
       ))!;
     }
@@ -102,7 +102,7 @@ export async function userFromToken(ctx: Ctx, token: string | undefined): Promis
   if (!token) return null;
   const hash = tokenHash(token);
   const user = await ctx.db.one<User>(
-    `select u.id, u.email, u.nickname, u.demoted, u.is_admin from sessions s join users u on u.id = s.user_id
+    `select u.id, u.email, u.nickname, u.avatar_version, u.demoted, u.is_admin from sessions s join users u on u.id = s.user_id
      where s.token_hash = $1`,
     [hash],
   );

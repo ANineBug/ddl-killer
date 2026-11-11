@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+import { userRef } from './avatar.ts';
 import { classWeights, requireMember } from './classes.ts';
 import { type Ctx, forbidden, HttpError, notFound, type User } from './context.ts';
 import type { Db } from './db.ts';
@@ -55,6 +56,7 @@ type HwRow = {
   class_id: number;
   uploader_id: number;
   uploader_name: string;
+  uploader_avatar: number;
   title: string;
   detail: string;
   due_kind: 'at' | 'next_class' | 'tbd';
@@ -88,7 +90,7 @@ type ProposalRow = {
   created_at: Date;
 };
 
-const HW_COLS = `h.*, u.nickname uploader_name`;
+const HW_COLS = `h.*, u.nickname uploader_name, u.avatar_version uploader_avatar`;
 
 async function loadHw(db: Db, id: number, lock = false) {
   // 投票、确认、采纳都会先锁住这条作业，两个人同时操作也只会一个一个算门槛
@@ -188,7 +190,7 @@ async function views(db: Db, rows: HwRow[], userId: number | null, now: Date) {
       mergedInto: h.merged_into,
       version: h.version,
       remindReady: h.remind_ready,
-      uploader: { id: h.uploader_id, nickname: h.uploader_name },
+      uploader: userRef(h.uploader_id, h.uploader_name, h.uploader_avatar),
       // 合并进来的重复作业也算"上传过"的人
       uploaderCount: 1 + mergedCount,
       confirms: { current: c?.current ?? 0, old: (c?.total ?? 0) - (c?.current ?? 0) },
@@ -232,13 +234,13 @@ export async function getHomework(ctx: Ctx, id: number, user: User | null) {
   await sweep(ctx);
   const h = await loadHw(db, id);
   const [view] = await views(db, [h], user?.id ?? null, now);
-  const history = await db.query<{ id: number; user_id: number; nickname: string; proposal_id: number | null; changes: unknown; created_at: Date }>(
-    `select c.id, c.user_id, u.nickname, c.proposal_id, c.changes, c.created_at
+  const history = await db.query<{ id: number; user_id: number; nickname: string; avatar_version: number; proposal_id: number | null; changes: unknown; created_at: Date }>(
+    `select c.id, c.user_id, u.nickname, u.avatar_version, c.proposal_id, c.changes, c.created_at
      from homework_changes c join users u on u.id = c.user_id where c.homework_id = $1 order by c.id`,
     [id],
   );
-  const proposals = await db.query<ProposalRow & { nickname: string }>(
-    `select p.*, u.nickname from proposals p join users u on u.id = p.proposer_id
+  const proposals = await db.query<ProposalRow & { nickname: string; avatar_version: number }>(
+    `select p.*, u.nickname, u.avatar_version from proposals p join users u on u.id = p.proposer_id
      where p.homework_id = $1 or (p.target_id = $1 and p.kind = 'duplicate') order by p.id desc limit 30`,
     [id],
   );
@@ -258,7 +260,7 @@ export async function getHomework(ctx: Ctx, id: number, user: User | null) {
     // 「此作业的改动」：原 → 现，谁改的
     history: history.map((c) => ({
       id: c.id,
-      by: { id: c.user_id, nickname: c.nickname },
+      by: userRef(c.user_id, c.nickname, c.avatar_version),
       proposalId: c.proposal_id,
       changes: c.changes,
       at: c.created_at,
@@ -277,7 +279,7 @@ export async function getHomework(ctx: Ctx, id: number, user: User | null) {
           reason: p.reason,
           status: p.status,
           appliedVia: p.applied_via,
-          proposer: { id: p.proposer_id, nickname: p.nickname },
+          proposer: userRef(p.proposer_id, p.nickname, p.avatar_version),
           agree: tally.agree,
           disagree: tally.disagree,
           threshold: threshold(thresholdKind(p, hw), size),
