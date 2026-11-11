@@ -78,7 +78,8 @@ export default function MeScreen() {
 
         <Section title="外观">
           <View style={styles.themes}>
-            {(['dusk', 'paper'] as ThemeName[]).map((n) => (
+            {/* 纸页是默认主题，排在前面 */}
+            {(['paper', 'dusk'] as ThemeName[]).map((n) => (
               <ThemeOption key={n} name={n} />
             ))}
           </View>
