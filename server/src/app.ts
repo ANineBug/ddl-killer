@@ -102,7 +102,8 @@ export function createApp(ctx: Ctx) {
   // ---------- 我 ----------
   app.get('/me', async (c) => {
     const u = need(c);
-    return c.json({ ...userRef(u.id, u.nickname, u.avatar_version), classes: await myClasses(ctx, u) });
+    const row = await ctx.db.one<{ email_digest: boolean }>('select email_digest from users where id = $1', [u.id]);
+    return c.json({ ...userRef(u.id, u.nickname, u.avatar_version), emailDigest: row?.email_digest ?? false, classes: await myClasses(ctx, u) });
   });
 
   // 头像：请求体直接是图片本身（Content-Type: image/jpeg 等），最大 2MB。
@@ -128,9 +129,15 @@ export function createApp(ctx: Ctx) {
   });
   app.patch('/me', async (c) => {
     const u = need(c);
-    const { nickname } = await body(c, z.object({ nickname: z.string().trim().min(1, '昵称不能为空').max(12, '昵称最多 12 个字') }));
-    await ctx.db.query('update users set nickname = $2 where id = $1', [u.id, nickname]);
-    return c.json({ id: u.id, nickname });
+    // 改昵称、开关邮件提醒，都可以只传其中一样
+    const input = await body(
+      c,
+      z.object({ nickname: z.string().trim().min(1, '昵称不能为空').max(12, '昵称最多 12 个字').optional(), emailDigest: z.boolean().optional() }),
+    );
+    if (input.nickname !== undefined) await ctx.db.query('update users set nickname = $2 where id = $1', [u.id, input.nickname]);
+    if (input.emailDigest !== undefined) await ctx.db.query('update users set email_digest = $2 where id = $1', [u.id, input.emailDigest]);
+    const row = await ctx.db.one<{ nickname: string; email_digest: boolean }>('select nickname, email_digest from users where id = $1', [u.id]);
+    return c.json({ id: u.id, nickname: row!.nickname, emailDigest: row!.email_digest });
   });
   app.post('/me/import', async (c) => {
     const u = need(c);

@@ -5,6 +5,7 @@ import { serve } from '@hono/node-server';
 import { createApp } from './app.ts';
 import type { Ctx } from './context.ts';
 import { type Db, migrate, pglite, postgres } from './db.ts';
+import { maybeSendDigests } from './digest.ts';
 import { sweep } from './homework.ts';
 import { consoleMailer, resendMailer } from './mailer.ts';
 
@@ -37,4 +38,8 @@ const port = Number(env.PORT ?? 8787);
 serve({ fetch: app.fetch, port }, () => console.log(`后端已启动：http://localhost:${port}/v1/health`));
 
 // 每分钟把过了截止时间的提议结束掉
-setInterval(() => sweep(ctx).catch((e) => console.error('sweep', e)), 60_000);
+// 每天早上 7 点发邮件提醒
+setInterval(() => {
+  sweep(ctx).catch((e) => console.error('sweep', e));
+  maybeSendDigests(ctx).catch((e) => console.error('digest', e));
+}, 60_000);
