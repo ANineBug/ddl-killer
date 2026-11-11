@@ -6,16 +6,12 @@ import { haptic } from '@/components/haptic';
 import { Card, Chip, Press, Txt } from '@/components/ui';
 import { dayDiff, formatDue, isoWeekday, weekdayNames } from '@/data/format';
 import { useStore } from '@/data/store';
-import { Homework, Reminder, Settings } from '@/data/types';
+import { Homework, Reminder } from '@/data/types';
 import { useTheme } from '@/theme/useTheme';
 
-// 默认提醒来自"我的 → 提醒"里的两个开关
-export function defaultReminders(settings: Settings): Reminder[] {
-  return [
-    ...(settings.remindDay ? [{ kind: 'before' as const, minutes: 1440 }] : []),
-    ...(settings.remindHours ? [{ kind: 'before' as const, minutes: 180 }] : []),
-  ];
-}
+// 默认提醒和提醒时间的算法放在 data/reminders.ts，手机通知也用同一套
+export { defaultReminders, reminderAt } from '@/data/reminders';
+import { defaultReminders, reminderAt } from '@/data/reminders';
 
 const presets = [
   { minutes: 1440, label: '前 1 天' },
@@ -25,8 +21,6 @@ const presets = [
 ];
 const customTimes = ['08:00', '12:00', '18:00', '21:00', '23:00'];
 
-export const reminderAt = (r: Reminder, due: Date) =>
-  r.kind === 'at' ? r.at : new Date(due.getTime() - r.minutes * 60000);
 
 function atTime(dayOffset: number, time: string) {
   const d = new Date();

@@ -78,6 +78,8 @@ export type RemoteInfo = {
   classId: number;
   state: 'pending' | 'confirmed' | 'disputed' | 'cancelled' | 'closed' | 'merged';
   dueKind: 'at' | 'next_class' | 'tbd';
+  // 有人提议改截止时间、还在投票时，几个时间里最早的那个；提醒按它算
+  earliestDue?: Date;
   version: number;
   // 我确认过，但确认的是修改前的版本
   confirmedOld: boolean;

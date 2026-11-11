@@ -18,7 +18,13 @@
       },
       "predictiveBackGestureEnabled": false,
       "package": "xyz.ninebug.homework",
-      "versionCode": 3
+      "versionCode": 3,
+      "permissions": [
+        "android.permission.SCHEDULE_EXACT_ALARM"
+      ],
+      "blockedPermissions": [
+        "android.permission.RECORD_AUDIO"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png",
@@ -26,7 +32,13 @@
     },
     "plugins": [
       "expo-router",
-      "./plugins/withSwufeCleartext"
+      "./plugins/withSwufeCleartext",
+      [
+        "expo-notifications",
+        {
+          "color": "#c2603e"
+        }
+      ]
     ],
     "scheme": "homeworkapp",
     "experiments": {

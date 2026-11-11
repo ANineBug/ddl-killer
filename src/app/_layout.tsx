@@ -3,6 +3,7 @@ import { LogBox, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
+import { LocalReminders } from '@/components/LocalReminders';
 import { ToastProvider } from '@/components/Toast';
 import { Backdrop } from '@/components/ui';
 import { OnlineSync } from '@/data/online';
@@ -27,6 +28,8 @@ export default function RootLayout() {
       <StoreProvider>
         {/* 和服务器同步作业；不画任何东西 */}
         <OnlineSync />
+        {/* 把作业提醒交给手机的通知系统；网页预览里什么都不做 */}
+        <LocalReminders />
         <ThemeProvider>
           <ToastProvider>
             <NavigationThemeProvider value={navigationTheme}>

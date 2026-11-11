@@ -7,6 +7,7 @@ import { useToast } from '@/components/Toast';
 import { Card, ModalScreen, Press, Txt } from '@/components/ui';
 import { api } from '@/api/client';
 import { errorText, useOnline } from '@/data/online';
+import { askExactAlarm, ensurePermission, exactAlarmGranted, notifySupported, sendTest } from '@/lib/notify';
 import { useTheme } from '@/theme/useTheme';
 
 // 用大白话讲清楚：为什么手机上的提醒可能不准时，以及两个解决办法（可以都开）
@@ -15,6 +16,40 @@ export default function ReminderNotice() {
   const online = useOnline();
   const toast = useToast();
   const [email, setEmail] = useState<boolean | null>(null);
+  // 手机上两项权限现在的状态；网页上为空
+  const [perm, setPerm] = useState<{ notify: boolean; exact: boolean } | null>(null);
+
+  async function refreshPerm() {
+    if (!notifySupported) return;
+    setPerm({ notify: await ensurePermission(false), exact: await exactAlarmGranted() });
+  }
+  useEffect(() => {
+    refreshPerm().catch(() => {});
+  }, []);
+
+  async function test() {
+    if (!notifySupported) {
+      toast('网页预览里不能发通知，要在手机上试');
+      return;
+    }
+    if (!(await ensurePermission(true))) {
+      toast('通知权限被关了，先在系统设置里打开', { label: '去设置', onPress: () => Linking.openSettings() });
+      refreshPerm();
+      return;
+    }
+    await sendTest();
+    haptic.success();
+    toast('10 秒后弹一条测试提醒，可以锁屏或者切到别的 app 等等看');
+    refreshPerm();
+  }
+
+  async function allowExact() {
+    try {
+      await askExactAlarm();
+    } finally {
+      refreshPerm();
+    }
+  }
 
   useEffect(() => {
     if (!online.loggedIn) return;
@@ -65,6 +100,18 @@ export default function ReminderNotice() {
             打开这个 app 的系统设置
           </Txt>
         </Press>
+
+        {perm && (
+          <View style={{ marginTop: 14, gap: 8 }}>
+            <PermRow label="通知" ok={perm.notify} hint="关了就完全收不到提醒" onFix={() => Linking.openSettings()} />
+            <PermRow label="准点提醒（闹钟和提醒）" ok={perm.exact} hint="没开的话，提醒可能晚几分钟" onFix={allowExact} />
+          </View>
+        )}
+        <Press onPress={test} style={[styles.button, { borderColor: theme.line }]}>
+          <Txt variant="sub" tone="sub" style={{ fontWeight: '600' }}>
+            发一条测试提醒
+          </Txt>
+        </Press>
       </Card>
 
       <Card style={styles.card}>
@@ -92,6 +139,32 @@ export default function ReminderNotice() {
         )}
       </Card>
     </ModalScreen>
+  );
+}
+
+function PermRow({ label, ok, hint, onFix }: { label: string; ok: boolean; hint: string; onFix: () => void }) {
+  return (
+    <View style={styles.row}>
+      <View style={{ flex: 1 }}>
+        <Txt variant="sub">{label}</Txt>
+        {!ok && (
+          <Txt variant="caption" tone="faint">
+            {hint}
+          </Txt>
+        )}
+      </View>
+      {ok ? (
+        <Txt variant="caption" tone="sub">
+          已允许
+        </Txt>
+      ) : (
+        <Press onPress={onFix} hitSlop={8}>
+          <Txt variant="caption" tone="accent">
+            去允许 ›
+          </Txt>
+        </Press>
+      )}
+    </View>
   );
 }
 

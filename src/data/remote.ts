@@ -34,6 +34,7 @@ export function fromRemote(r: RemoteHomework, courseId: string, previous?: Homew
       classId: r.classId,
       state: r.state,
       dueKind: r.dueKind,
+      earliestDue: r.earliestDue ? new Date(r.earliestDue) : undefined,
       version: r.version,
       confirmedOld: confirmed === 'old',
       remindReady: r.remindReady,
