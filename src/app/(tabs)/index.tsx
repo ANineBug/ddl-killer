@@ -5,6 +5,7 @@ import { Animated, Easing, Platform, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { haptic } from '@/components/haptic';
+import { SwipeRow } from '@/components/SwipeRow';
 import { TabScreen } from '@/components/TabScreen';
 import { TabScrollView } from '@/components/TabScroll';
 import { useToast } from '@/components/Toast';
@@ -137,7 +138,9 @@ function HomeworkList({ items }: { items: Homework[] }) {
   );
 }
 
-// 完成一项作业：小圈打勾 → 标题划线 → 这一行收起归档 → 提示可以撤销
+// 完成一项作业有两种方式：
+// 点小圈：打勾 → 标题划线 → 这一行收起归档 → 提示可以撤销
+// 左右划走：整行跟着手指滑出去 → 收起归档 → 提示可以撤销。已完成的作业划走是恢复成未完成
 function HomeworkRow({ item, last }: { item: Homework; last: boolean }) {
   const { theme } = useTheme();
   const { courseById, toggleDone } = useStore();
@@ -151,6 +154,23 @@ function HomeworkRow({ item, last }: { item: Homework; last: boolean }) {
   const check = useRef(new Animated.Value(item.done ? 1 : 0)).current;
   const strike = useRef(new Animated.Value(0)).current;
   const collapse = useRef(new Animated.Value(1)).current;
+  // 网页上划完松手会紧跟着触发一次点击，用它挡掉，免得划走的同时又打开了详情
+  const swipedAt = useRef(0);
+
+  // 整行已经划出去了，这里只负责把空出来的位置收起来，再真正改状态
+  function swipeCommit() {
+    if (completing) return;
+    setCompleting(true);
+    Animated.timing(collapse, { toValue: 0, duration: 240, easing: Easing.inOut(Easing.cubic), useNativeDriver: false }).start(() => {
+      toggleDone(item.id);
+      if (item.done) {
+        haptic.select();
+        return;
+      }
+      haptic.success();
+      toast(`「${item.title}」已完成`, { label: '撤销', onPress: () => toggleDone(item.id) });
+    });
+  }
 
   function complete() {
     if (completing) return;
@@ -179,8 +199,16 @@ function HomeworkRow({ item, last }: { item: Homework; last: boolean }) {
     <Animated.View
       onLayout={(e) => !completing && setRowH(e.nativeEvent.layout.height)}
       style={completing && rowH ? { height: collapse.interpolate({ inputRange: [0, 1], outputRange: [0, rowH] }), opacity: collapse, overflow: 'hidden' } : undefined}>
+      <SwipeRow
+        label={item.done ? '恢复' : '完成'}
+        icon={item.done ? 'arrow-undo' : 'checkmark'}
+        onCommit={swipeCommit}
+        onSwipe={() => { swipedAt.current = Date.now(); }}>
       <Press
-        onPress={() => router.push(`/homework/${item.id}`)}
+        onPress={() => {
+          if (Date.now() - swipedAt.current < 350) return;
+          router.push(`/homework/${item.id}`);
+        }}
         style={[styles.row, !last && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.line }]}>
         <Press onPress={complete} hitSlop={10} style={{ paddingRight: 12 }}>
           <View style={[styles.check, { borderColor: item.done || completing ? theme.accent : theme.faint }]}>
@@ -229,6 +257,7 @@ function HomeworkRow({ item, last }: { item: Homework; last: boolean }) {
           </Txt>
         </View>
       </Press>
+      </SwipeRow>
     </Animated.View>
   );
 }
