@@ -44,7 +44,7 @@ function nextDays() {
 
 export default function Upload() {
   const { theme } = useTheme();
-  const { courses: allCourses, homework, addHomework, updateHomework, courseById, timetable } = useStore();
+  const { courses: allCourses, homework, addHomework, updateHomework, courseById, timetable, settings } = useStore();
   const toast = useToast();
   const online = useOnline();
   const [busy, setBusy] = useState(false);
@@ -75,7 +75,7 @@ export default function Upload() {
   // 这门课已经接上服务器了：发布到班里，要先登录
   const shared = !!course?.serverClassId;
   const needLogin = shared && !online.loggedIn;
-  const upcoming = course ? findNextClass(course, course.source ? timetable.starts[course.source.term] : undefined) : null;
+  const upcoming = course ? findNextClass(course, course.source ? timetable.starts[course.source.term] : undefined, settings.periodTimes) : null;
   const nextClass = upcoming?.at ?? null;
   // 这门课已经有人传过的、还没截止的作业：发布前先看一眼，免得重复传
   const existing = shared && !editing ? homework.filter((h) => h.courseId === courseId && h.remote && h.remote.state !== 'closed' && h.remote.state !== 'cancelled') : [];
@@ -169,7 +169,11 @@ export default function Upload() {
       )}
       {shared && dueKind === 'next_class' && (
         <Txt variant="caption" tone={nextClass ? 'sub' : 'urgent'} style={{ marginTop: 8, marginLeft: 4 }}>
-          {upcoming ? `下次上课：${dayLabel(upcoming.at)}第 ${upcoming.period} 节，上课前提醒` : '课表里找不到这门课接下来的上课时间，请选具体时间'}
+          {upcoming
+            ? upcoming.known
+              ? `下次上课：${dayLabel(upcoming.at)}第 ${upcoming.period} 节，上课前提醒`
+              : `下次上课：${dayLabel(upcoming.at)}第 ${upcoming.period} 节。还没填第 ${upcoming.period} 节几点上课，先按当天早上 7 点提醒（「我的」里可以填）`
+            : '课表里找不到这门课接下来的上课时间，请选具体时间'}
         </Txt>
       )}
       {shared && dueKind === 'tbd' && (

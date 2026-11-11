@@ -102,6 +102,8 @@ export type Settings = {
   remindDay: boolean;
   remindHours: boolean;
   quietNight: boolean;
+  // 每节课几点开始，自己填的，选填。{ 1: '08:20', … }。只用来算「下次课前」的提醒时间
+  periodTimes?: Record<number, string>;
 };
 
 export type TimetableSettings = {

@@ -215,6 +215,11 @@ export default function MeScreen() {
               提醒可能不准时，以下内容你需要知道 ›
             </Txt>
           </Press>
+          <Press onPress={() => router.push('/class-times')} hitSlop={8} style={{ marginTop: 8, marginLeft: 4 }}>
+            <Txt variant="caption" tone="accent">
+              每节课几点上课（选填）›
+            </Txt>
+          </Press>
         </Section>
 
         <Txt variant="caption" tone="faint" style={{ textAlign: 'center', marginTop: 26 }}>

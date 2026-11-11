@@ -1,32 +1,23 @@
-// 每一节课几点开始。来自之前的作息截图，第 1–9 节对得上截图；第 10–12 节是按间隔推的，还没核实
+// 每节课几点开始，学校的作息我们不写死，由每个人在「我的 → 每节课几点上课」里自己填（选填）。
+// 没填的那一节，「下次课前」按当天早上 7 点算：宁可早提醒，不能晚
 import { inWeek, sessionWeeks, weekFromStart } from './schedule';
 import type { Course } from './types';
 
-export const PERIOD_START: Record<number, string> = {
-  1: '08:00',
-  2: '09:00',
-  3: '10:10',
-  4: '11:10',
-  5: '13:30',
-  6: '14:30',
-  7: '15:40',
-  8: '16:40',
-  9: '18:30',
-  10: '19:30',
-  11: '20:30',
-  12: '21:30',
-};
+export const FALLBACK_TIME = '07:00';
+
+export const validTime = (t: string) => /^([01]?\d|2[0-3]):[0-5]\d$/.test(t.trim());
 
 const isoWeekday = (d: Date) => (d.getDay() === 0 ? 7 : d.getDay());
 
 // 「下次课前」：这门课下一次上课的开始时间。
 // 知道第一周周一是哪天，就按周次算（单双周、跳周都对）；不知道就只看星期几
-export function nextClassTime(course: Course, termStart: string | undefined, now = new Date()): Date | null {
-  return nextClass(course, termStart, now)?.at ?? null;
-}
-
-// 同上，另外告诉你是第几节开始的。界面上只说"哪天第几节"，不写几点（钟点是推算的，不一定准）
-export function nextClass(course: Course, termStart: string | undefined, now = new Date()): { at: Date; period: number } | null {
+// 这门课下一次上课：哪天、第几节、按几点算；known 表示那一节的时间是自己填过的
+export function nextClass(
+  course: Course,
+  termStart: string | undefined,
+  times: Record<number, string> = {},
+  now = new Date(),
+): { at: Date; period: number; known: boolean } | null {
   for (let i = 0; i < 70; i++) {
     const day = new Date(now);
     day.setHours(0, 0, 0, 0);
@@ -36,10 +27,12 @@ export function nextClass(course: Course, termStart: string | undefined, now = n
       .filter((s) => s.weekday === isoWeekday(day))
       .filter((s) => week === undefined || inWeek(sessionWeeks(course, s), week))
       .map((s) => {
-        const [h, m] = (PERIOD_START[s.from] ?? '08:00').split(':').map(Number);
+        const set = times[s.from];
+        const known = !!set && validTime(set);
+        const [h, m] = (known ? set : FALLBACK_TIME).split(':').map(Number);
         const at = new Date(day);
         at.setHours(h, m, 0, 0);
-        return { at, period: s.from };
+        return { at, period: s.from, known };
       })
       .filter((c) => c.at > now)
       .sort((a, b) => a.at.getTime() - b.at.getTime());
