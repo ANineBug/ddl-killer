@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef } from 'react';
 import { AppState } from 'react-native';
 
 import { api, ApiError } from '@/api/client';
-import type { Me, RemoteClass, RemoteHomework, UserRef } from '@/api/types';
+import type { Me, ProposalKind, RemoteClass, RemoteDetail, RemoteHomework, UserRef } from '@/api/types';
 
 import { courseForServer, courseFromClass, fromRemote, localHomeworkId } from './remote';
 import { useStore } from './store';
@@ -104,10 +104,13 @@ export function useOnline() {
   );
 
   const upload = useCallback(
-    async (classId: number, data: { title: string; detail: string; due: Date | null; submit: string; source: string }) => {
+    async (
+      classId: number,
+      data: { title: string; detail: string; dueKind: 'at' | 'next_class' | 'tbd'; due: Date | null; submit: string; source: string; optional: boolean; groupWork: boolean },
+    ) => {
       const r = await api<RemoteHomework>(`/classes/${classId}/homework`, {
         method: 'POST',
-        body: { ...data, dueKind: data.due ? 'at' : 'tbd', due: data.due?.toISOString() },
+        body: { ...data, due: data.dueKind === 'tbd' ? undefined : data.due?.toISOString() },
       });
       apply(r);
       return r;
@@ -142,6 +145,71 @@ export function useOnline() {
     [apply],
   );
 
+  // ---------- 详情与提议 ----------
+
+  // 详情：带改动记录、提议、合并进来的条目。顺便把列表里这条也更新成最新的
+  const detail = useCallback(
+    async (h: Homework) => {
+      const d = await api<RemoteDetail>(`/homework/${h.remote!.id}`);
+      apply(d);
+      return d;
+    },
+    [apply],
+  );
+
+  // 提议生效可能合并、拆开别的作业，所以动完重新拉一遍这门课的作业
+  const resync = useCallback(
+    async (h: Homework) => {
+      const c = courses.find((x) => x.id === h.courseId);
+      if (c) await sync([c]);
+    },
+    [courses, sync],
+  );
+
+  const propose = useCallback(
+    async (h: Homework, body: { kind: ProposalKind; changes?: Record<string, unknown>; targetId?: number; reason?: string }) => {
+      await api(`/homework/${h.remote!.id}/proposals`, { method: 'POST', body });
+      await resync(h);
+    },
+    [resync],
+  );
+
+  const vote = useCallback(
+    async (h: Homework, proposalId: number, agree: boolean) => {
+      const r = await api<{ status: string }>(`/proposals/${proposalId}/vote`, { method: 'POST', body: { agree } });
+      await resync(h);
+      return r.status;
+    },
+    [resync],
+  );
+
+  const adopt = useCallback(
+    async (h: Homework, proposalId: number) => {
+      await api(`/proposals/${proposalId}/adopt`, { method: 'POST' });
+      await resync(h);
+    },
+    [resync],
+  );
+
+  const withdraw = useCallback(
+    async (h: Homework, proposalId: number) => {
+      await api(`/proposals/${proposalId}/withdraw`, { method: 'POST' });
+      await resync(h);
+    },
+    [resync],
+  );
+
+  // 列表里那一叠的「是重复 / 不是重复」：找到这两条之间进行中的"重复了"提议，投一票
+  const voteDuplicate = useCallback(
+    async (front: Homework, agree: boolean) => {
+      const d = await api<RemoteDetail>(`/homework/${front.remote!.id}`);
+      const p = d.proposals.find((x) => x.kind === 'duplicate' && x.status === 'open');
+      if (!p) throw new ApiError(404, 'not_found', '这条重复提议已经结束了');
+      return vote(front, p.id, agree);
+    },
+    [vote],
+  );
+
   // ---------- 教学班 ----------
 
   const search = useCallback((term: string, q: string) => api<{ classes: RemoteClass[] }>(`/classes/search?term=${encodeURIComponent(term)}&q=${encodeURIComponent(q)}`), []);
@@ -159,7 +227,7 @@ export function useOnline() {
     [account, addJoinedCourse, sync, timetable.term, setTimetable],
   );
 
-  return { loggedIn: !!account, account, link, sync, refresh, requestCode, login, logout, rename, me, upload, edit, remove, react, search, join };
+  return { loggedIn: !!account, account, link, sync, refresh, requestCode, login, logout, rename, me, upload, edit, remove, react, detail, propose, vote, adopt, withdraw, voteDuplicate, search, join };
 }
 
 export { ApiError, localHomeworkId };

@@ -35,6 +35,7 @@ type StoreValue = {
   importCourses: (courses: Course[], term: string, start?: string) => Promise<{ added: number; updated: number; undo: () => void }>;
   courseById: (id: string) => Course | undefined;
   toggleDone: (id: string) => void;
+  toggleIgnored: (id: string) => void;
   toggleReaction: (id: string, key: ReactionKey) => void;
   // 对"这几条是不是同一份作业"投票；再点一次同样的就是撤回
   voteDuplicate: (id: string, agree: boolean) => void;
@@ -143,7 +144,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       // 完成状态、自己设的提醒只存在手机上，换成新内容时接着用
       const fresh = items.map((x) => {
         const prev = old.get(x.id);
-        return prev ? { ...x, done: prev.done, reminders: prev.reminders, dupVote: prev.dupVote } : x;
+        return prev ? { ...x, done: prev.done, reminders: prev.reminders, dupVote: prev.dupVote, ignored: prev.ignored } : x;
       });
       return [...fresh, ...keep];
     });
@@ -152,7 +153,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const upsertRemote = useCallback((item: Homework) => {
     setHomework((list) => {
       const prev = list.find((h) => h.id === item.id);
-      const next = prev ? { ...item, done: prev.done, reminders: prev.reminders, dupVote: prev.dupVote } : item;
+      const next = prev ? { ...item, done: prev.done, reminders: prev.reminders, dupVote: prev.dupVote, ignored: prev.ignored } : item;
       return prev ? list.map((h) => (h.id === item.id ? next : h)) : [next, ...list];
     });
   }, []);
@@ -163,6 +164,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const toggleDone = useCallback((id: string) => {
     setHomework((list) => list.map((h) => (h.id === id ? { ...h, done: !h.done } : h)));
+  }, []);
+
+  const toggleIgnored = useCallback((id: string) => {
+    setHomework((list) => list.map((h) => (h.id === id ? { ...h, ignored: !h.ignored } : h)));
   }, []);
 
   const toggleReaction = useCallback((id: string, key: ReactionKey) => {
@@ -318,6 +323,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       importCourses,
       courseById,
       toggleDone,
+      toggleIgnored,
       toggleReaction,
       voteDuplicate,
       setReminders,
@@ -349,6 +355,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       importCourses,
       courseById,
       toggleDone,
+      toggleIgnored,
       toggleReaction,
       voteDuplicate,
       setReminders,

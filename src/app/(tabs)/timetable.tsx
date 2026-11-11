@@ -151,7 +151,7 @@ function TimetableContent() {
           <View style={styles.header}>
             <View>
               <Txt variant="caption" tone="sub">
-                {actualWeek === undefined ? (timetable.term ? '按周查看' : '演示课表') : week === actualWeek ? '本周' : week < actualWeek ? '已经过去' : '提前看看'}
+                {actualWeek === undefined ? '按周查看' : week === actualWeek ? '本周' : week < actualWeek ? '已经过去' : '提前看看'}
               </Txt>
               <Txt variant="display" style={{ marginTop: 4 }}>
                 课表
@@ -169,7 +169,7 @@ function TimetableContent() {
 
           {terms.length > 0 && <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12 }}>
             {terms.map((term) => <Chip key={term} label={term} active={timetable.term === term} onPress={() => setTimetable({ term })} />)}
-            <Chip label="手动 / 演示" active={!timetable.term} onPress={() => setTimetable({ term: undefined })} />
+            <Chip label="未分学期" active={!timetable.term} onPress={() => setTimetable({ term: undefined })} />
           </View>}
 
           {!!timetable.term && <>

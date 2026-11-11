@@ -37,6 +37,7 @@ export default function RootLayout() {
                   <Stack.Screen name="import/swufe" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
                   <Stack.Screen name="login" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
                   <Stack.Screen name="join-class" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
+                  <Stack.Screen name="report" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
                 </Stack>
               </View>
             </NavigationThemeProvider>

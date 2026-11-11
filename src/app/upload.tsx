@@ -1,14 +1,14 @@
-import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
-import { StyleSheet } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { CalendarPicker } from '@/components/CalendarPicker';
 import { TimePicker } from '@/components/TimePicker';
 import { useToast } from '@/components/Toast';
 import { Chip, ChipGroup, closeModal, Field, ModalScreen, Press, PrimaryButton, Txt } from '@/components/ui';
-import { dayDiff, hhmm, isoWeekday, weekdayNames } from '@/data/format';
+import { dayDiff, formatDue, hhmm, isoWeekday, isTbd, weekdayNames } from '@/data/format';
 import { errorText, useOnline } from '@/data/online';
+import { nextClassTime } from '@/data/periods';
 import { useStore } from '@/data/store';
 import { SubmitMethod } from '@/data/types';
 import { useTheme } from '@/theme/useTheme';
@@ -57,14 +57,20 @@ export default function Upload() {
   const [timeOpen, setTimeOpen] = useState(false);
   const [submit, setSubmit] = useState<SubmitMethod>(editing?.submit ?? '学习通');
   const [detail, setDetail] = useState(editing?.detail ?? '');
-  const [hasPhoto, setHasPhoto] = useState(editing?.hasPhoto ?? false);
   const [source, setSource] = useState(editing?.remote?.source ?? '课堂口头');
+  // 截止方式：具体时间 / 下次课前（按课表算出下次上课的时间）/ 待定
+  const [dueKind, setDueKind] = useState<'at' | 'next_class' | 'tbd'>(editing?.remote?.dueKind ?? 'at');
+  const [optional, setOptional] = useState(editing?.remote?.optional ?? false);
+  const [groupWork, setGroupWork] = useState(editing?.remote?.groupWork ?? false);
   const course = courseId ? courseById(courseId) : undefined;
   // 这门课已经接上服务器了：发布到班里，要先登录
   const shared = !!course?.serverClassId;
   const needLogin = shared && !online.loggedIn;
+  const nextClass = course ? nextClassTime(course, course.source ? timetable.starts[course.source.term] : undefined) : null;
+  // 这门课已经有人传过的、还没截止的作业：发布前先看一眼，免得重复传
+  const existing = shared && !editing ? homework.filter((h) => h.courseId === courseId && h.remote && h.remote.state !== 'closed' && h.remote.state !== 'cancelled') : [];
 
-  const ready = courseId !== null && title.trim().length > 0;
+  const ready = courseId !== null && title.trim().length > 0 && !(dueKind === 'next_class' && !nextClass);
   const quickDays = nextDays();
   // 选的日期不在最近 7 天里，就是自定义的日期
   const customDate = dayDiff(date) > 6;
@@ -72,16 +78,17 @@ export default function Upload() {
 
   async function publish() {
     if (!courseId || busy) return;
-    const due = new Date(date);
+    let due = new Date(date);
     const [h, m] = time.split(':').map(Number);
     due.setHours(h, m, 0, 0);
-    const data = { courseId, title: title.trim(), detail: detail.trim(), due, submit, hasPhoto };
+    if (dueKind === 'next_class' && nextClass) due = nextClass;
+    const data = { courseId, title: title.trim(), detail: detail.trim(), due, submit, hasPhoto: false };
     if (shared) {
       // 先等服务器收下再关页面；被拒绝（比如新同学今天传满了）就留在这里，内容不丢
       setBusy(true);
       try {
-        const payload = { title: data.title, detail: data.detail, due, submit, source };
-        if (editing?.remote) await online.edit(editing, { ...payload, dueKind: 'at', due: due.toISOString() });
+        const payload = { title: data.title, detail: data.detail, dueKind, due: dueKind === 'tbd' ? null : due, submit, source, optional, groupWork };
+        if (editing?.remote) await online.edit(editing, { ...payload, due: payload.due ? payload.due.toISOString() : null });
         else await online.upload(course!.serverClassId!, payload);
         closeModal();
         toast(editing ? '已保存修改' : '已发布，班里的同学都能看到了');
@@ -125,6 +132,44 @@ export default function Upload() {
 
       <Field label="作业标题" placeholder="比如：习题 3.2" value={title} onChangeText={setTitle} />
 
+      {existing.length > 0 && (
+        <View style={[styles.existing, { borderColor: theme.line }]}>
+          <Txt variant="caption" tone="sub" style={{ marginBottom: 6 }}>
+            这门课已经有人传了这些，是同一个的话就不用再传了
+          </Txt>
+          {existing.slice(0, 5).map((h) => (
+            <Press key={h.id} onPress={() => router.push(`/homework/${h.id}`)} style={styles.existingRow}>
+              <Txt variant="sub" numberOfLines={1} style={{ flex: 1 }}>
+                {h.title}
+              </Txt>
+              <Txt variant="caption" tone="faint">
+                {isTbd(h.due) ? '待定' : formatDue(h.due, true)} ›
+              </Txt>
+            </Press>
+          ))}
+        </View>
+      )}
+
+      {shared && (
+        <ChipGroup label="什么时候截止">
+          <Chip label="具体时间" active={dueKind === 'at'} onPress={() => setDueKind('at')} />
+          <Chip label="下次课前" active={dueKind === 'next_class'} onPress={() => setDueKind('next_class')} />
+          <Chip label="待定" active={dueKind === 'tbd'} onPress={() => setDueKind('tbd')} />
+        </ChipGroup>
+      )}
+      {shared && dueKind === 'next_class' && (
+        <Txt variant="caption" tone={nextClass ? 'sub' : 'urgent'} style={{ marginTop: 8, marginLeft: 4 }}>
+          {nextClass ? `下次上课：${formatDue(nextClass)}，按这个时间提醒` : '课表里找不到这门课接下来的上课时间，请选具体时间'}
+        </Txt>
+      )}
+      {shared && dueKind === 'tbd' && (
+        <Txt variant="caption" tone="sub" style={{ marginTop: 8, marginLeft: 4 }}>
+          老师还没说什么时候交。定下来以后，谁知道了点「有问题 → 老师改了」补上
+        </Txt>
+      )}
+
+      {(!shared || dueKind === 'at') && (
+      <>
       <ChipGroup label="截止日期">
         {quickDays.map((d) => (
           <Chip
@@ -168,12 +213,21 @@ export default function Upload() {
         <Chip label={customTime ? time : '自定义'} active={customTime || timeOpen} onPress={() => setTimeOpen((v) => !v)} />
       </ChipGroup>
       {timeOpen && <TimePicker value={time} onChange={setTime} />}
+      </>
+      )}
 
       <ChipGroup label="提交方式">
         {methods.map((m) => (
           <Chip key={m} label={m} active={submit === m} onPress={() => setSubmit(m)} />
         ))}
       </ChipGroup>
+
+      {shared && (
+        <ChipGroup label="标签">
+          <Chip label="选做（非必做）" active={optional} onPress={() => setOptional((v) => !v)} />
+          <Chip label="小组作业" active={groupWork} onPress={() => setGroupWork((v) => !v)} />
+        </ChipGroup>
+      )}
 
       {shared && (
         <ChipGroup label="从哪知道的">
@@ -185,30 +239,11 @@ export default function Upload() {
 
       <Field label="要求（可选）" placeholder="页码、题号、格式要求……" value={detail} onChangeText={setDetail} multiline />
 
-      {/* 照片这一版还不上传，接上服务器的课先不显示，免得以为传上去了 */}
-      {!shared && (
-      <Press
-        onPress={() => setHasPhoto((v) => !v)}
-        style={[styles.photo, { borderColor: hasPhoto ? theme.accent : theme.line, backgroundColor: hasPhoto ? theme.accentSoft : 'transparent' }]}>
-        <Ionicons name={hasPhoto ? 'image' : 'camera-outline'} size={20} color={hasPhoto ? theme.accent : theme.sub} />
-        <Txt variant="sub" tone={hasPhoto ? 'accent' : 'sub'} style={{ marginLeft: 8 }}>
-          {hasPhoto ? '已添加 1 张照片（演示）' : '拍黑板 / 拍 PPT'}
-        </Txt>
-      </Press>
-      )}
     </ModalScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  photo: {
-    marginTop: 22,
-    height: 56,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderStyle: 'dashed',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  existing: { marginTop: 18, borderWidth: 1, borderStyle: 'dashed', borderRadius: 14, padding: 12 },
+  existingRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 6 },
 });

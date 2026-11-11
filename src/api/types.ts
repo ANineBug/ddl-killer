@@ -48,3 +48,38 @@ export type RemoteClass = {
 export type MyClass = RemoteClass & { via: 'import' | 'manual'; myTier: Tier; myScore: number };
 
 export type Me = UserRef & { classes: MyClass[] };
+
+export type ProposalKind = 'correct' | 'update' | 'duplicate' | 'unduplicate';
+
+export type RemoteProposal = {
+  id: number;
+  homeworkId: number;
+  kind: ProposalKind;
+  // 提议改成什么：字段名用接口里的写法（title、due、dueKind、submit、cancel……）
+  changes: Record<string, unknown> | null;
+  targetId: number | null;
+  reason: string;
+  status: 'open' | 'applied' | 'rejected' | 'withdrawn' | 'expired';
+  appliedVia: 'adopt' | 'vote' | null;
+  proposer: UserRef;
+  agree: number;
+  disagree: number;
+  threshold: number;
+  myVote: boolean | null;
+  createdAt: string;
+};
+
+// 改动记录里一个字段的"原 → 现"。字段名是数据库里的写法（due_kind、group_work、status……）
+export type RemoteChange = {
+  id: number;
+  by: UserRef;
+  proposalId: number | null;
+  changes: Record<string, { from: unknown; to: unknown }>;
+  at: string;
+};
+
+export type RemoteDetail = RemoteHomework & {
+  history: RemoteChange[];
+  proposals: RemoteProposal[];
+  mergedFrom: { id: number; title: string }[];
+};

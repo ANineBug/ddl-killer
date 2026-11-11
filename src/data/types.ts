@@ -67,6 +67,8 @@ export type Homework = {
   possibleDuplicates?: string[];
   // 我对"是不是重复"投的票：true 是重复，false 不是，没投过为空
   dupVote?: boolean;
+  // 「与我无关」：比如选了别的题目的小组，这条不再出现在待完成里，也不提醒。只存在手机上
+  ignored?: boolean;
   // 从服务器同步来的作业才有：服务器上的编号、状态等。没有就是只存在这台手机上的（演示数据）
   remote?: RemoteInfo;
 };

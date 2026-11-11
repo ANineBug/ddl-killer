@@ -12,7 +12,7 @@ import { TabScreen } from '@/components/TabScreen';
 import { TabScrollView } from '@/components/TabScroll';
 import { useToast } from '@/components/Toast';
 import { Card, Chip, Press, Section, Txt } from '@/components/ui';
-import { dayDiff, formatDue, formatToday, isUrgent } from '@/data/format';
+import { dayDiff, formatDue, formatToday, isTbd, isUrgent } from '@/data/format';
 import { errorText, useOnline } from '@/data/online';
 import { useStore } from '@/data/store';
 import { Homework } from '@/data/types';
@@ -45,10 +45,12 @@ export default function HomeworkScreen() {
   }
 
   const pending = useMemo(
-    () => homework.filter((h) => !h.done).sort((a, b) => a.due.getTime() - b.due.getTime()),
+    () => homework.filter((h) => !h.done && !h.ignored).sort((a, b) => a.due.getTime() - b.due.getTime()),
     [homework],
   );
-  const done = homework.filter((h) => h.done);
+  // 完成了的和「与我无关」的都收在下面
+  const done = homework.filter((h) => h.done || h.ignored);
+  const ignoredCount = homework.filter((h) => h.ignored && !h.done).length;
   const next = pending[0];
 
   // 可能重复的几条叠成一叠：最早传的那条在最上面，其余的收在它后面，列表里不再单独出现
@@ -124,7 +126,7 @@ export default function HomeworkScreen() {
 
         {done.length > 0 && (
           <View style={{ marginTop: 22 }}>
-            <DoneToggle count={done.length} open={showDone} onPress={() => setShowDone((v) => !v)} />
+            <DoneToggle count={done.length} label={ignoredCount ? '已完成或与我无关' : '已完成'} open={showDone} onPress={() => setShowDone((v) => !v)} />
             {showDone && <HomeworkList items={done} />}
           </View>
         )}
@@ -134,7 +136,7 @@ export default function HomeworkScreen() {
 }
 
 // "已完成 N 项"：数字变多时跳一下、闪一下强调色，让人看到作业归档到了这里
-function DoneToggle({ count, open, onPress }: { count: number; open: boolean; onPress: () => void }) {
+function DoneToggle({ count, label, open, onPress }: { count: number; label: string; open: boolean; onPress: () => void }) {
   const { theme } = useTheme();
   const pop = useRef(new Animated.Value(1)).current;
   const prev = useRef(count);
@@ -156,7 +158,7 @@ function DoneToggle({ count, open, onPress }: { count: number; open: boolean; on
     <Press onPress={onPress} style={styles.doneToggle}>
       <Animated.View style={{ transform: [{ scale: pop }] }}>
         <Txt variant="caption" tone={flash ? 'accent' : 'sub'} style={flash && { fontWeight: '700' }}>
-          已完成 {count} 项
+          {label} {count} 项
         </Txt>
       </Animated.View>
       <Ionicons name={open ? 'chevron-up' : 'chevron-down'} size={14} color={theme.sub} />
@@ -200,6 +202,7 @@ function DuplicateStack({ front, others }: { front: Homework; others: Homework[]
   const { theme } = useTheme();
   const { voteDuplicate } = useStore();
   const toast = useToast();
+  const online = useOnline();
   const [open, setOpen] = useState(false);
   const p = useSharedValue(0);
   const drawerH = useSharedValue(0);
@@ -212,6 +215,22 @@ function DuplicateStack({ front, others }: { front: Homework; others: Homework[]
 
   function vote(agree: boolean) {
     haptic.select();
+    // 服务器上的作业：投到服务器，够人数就真的合并了
+    if (front.remote) {
+      if (!online.loggedIn) {
+        toast('登录后才能投票', { label: '登录', onPress: () => router.push('/login') });
+        return;
+      }
+      online
+        .voteDuplicate(front, agree)
+        .then((status) => {
+          voteDuplicate(front.id, agree);
+          toast(status === 'applied' ? '同意的人够了，已经合并成一条' : status === 'rejected' ? '大家觉得不是重复' : agree ? '已投「是重复」' : '已投「不是重复」');
+          setTimeout(() => toggle(false), 350);
+        })
+        .catch((e) => toast(errorText(e)));
+      return;
+    }
     const undo = front.dupVote === agree;
     voteDuplicate(front.id, agree);
     if (undo) return;
@@ -271,6 +290,20 @@ function HomeworkRow({ item, last, badge, onOpen }: { item: Homework; last: bool
   const toast = useToast();
   const course = courseById(item.courseId);
   const urgent = !item.done && isUrgent(item.due);
+  // 服务器作业在截止时间后面跟几个小字：有争议、已延期、几个人传了……
+  const r = item.remote;
+  const tags = r
+    ? [
+        r.state === 'disputed' && '有争议',
+        r.state === 'cancelled' && '已取消',
+        r.postponed && r.state !== 'cancelled' && '已延期',
+        r.state === 'pending' && r.uploaderCount > 1 && `${r.uploaderCount} 人上传`,
+        r.optional && '选做',
+        item.ignored && '与我无关',
+      ].filter((x): x is string => !!x)
+    : item.ignored
+      ? ['与我无关']
+      : [];
 
   const [completing, setCompleting] = useState(false);
   const [rowH, setRowH] = useState(0);
@@ -378,8 +411,14 @@ function HomeworkRow({ item, last, badge, onOpen }: { item: Homework; last: bool
               {course?.name} ·{' '}
             </Txt>
             <Txt variant="caption" tone={urgent ? 'urgent' : 'sub'} numberOfLines={1} style={[{ flexShrink: 0 }, urgent && { fontWeight: '700' }]}>
-              {formatDue(item.due, true)} 截止
+              {isTbd(item.due) ? '截止待定' : `${formatDue(item.due, true)} 截止`}
             </Txt>
+            {tags.length > 0 && (
+              <Txt variant="caption" tone={item.remote?.state === 'disputed' ? 'urgent' : 'faint'} numberOfLines={1} style={{ flexShrink: 0 }}>
+                {' · '}
+                {tags.join(' · ')}
+              </Txt>
+            )}
           </View>
         </View>
         <View style={styles.meta}>

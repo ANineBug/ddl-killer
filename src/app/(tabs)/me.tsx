@@ -16,11 +16,10 @@ import { useTheme } from '@/theme/useTheme';
 
 export default function MeScreen() {
   const { theme } = useTheme();
-  const { profile, setProfile, homework, settings, setSettings, resetDemo } = useStore();
+  const { profile, setProfile, homework, settings, setSettings } = useStore();
   const insets = useSafeAreaInsets();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(profile.nickname);
-  const [confirmReset, setConfirmReset] = useState(false);
   const online = useOnline();
   const toast = useToast();
   // 登录了就用服务器上的昵称
@@ -129,14 +128,6 @@ export default function MeScreen() {
           </Txt>
         </Section>
 
-        <Section title="第二期">
-          <Card style={{ padding: 16 }}>
-            <Txt variant="sub" tone="sub" style={{ lineHeight: 20 }}>
-              贡献值、签到、排行榜、打赏、聊天气泡、小论坛，正在路上。
-            </Txt>
-          </Card>
-        </Section>
-
         <Txt variant="caption" tone="faint" style={{ textAlign: 'center', marginTop: 26 }}>
           {online.loggedIn ? '版本 0.1 · 作业和服务器同步，完成状态和提醒只存在这台手机上' : '版本 0.1 · 数据保存在这台手机上'}
         </Txt>
@@ -153,26 +144,6 @@ export default function MeScreen() {
             </Txt>
           </Press>
         )}
-        {/* 点一次变成确认文字，3 秒内再点一次才真正重置 */}
-        <Press
-          hitSlop={8}
-          style={{ alignSelf: 'center', marginTop: 10 }}
-          onPress={() => {
-            if (!confirmReset) {
-              haptic.select();
-              setConfirmReset(true);
-              setTimeout(() => setConfirmReset(false), 3000);
-              return;
-            }
-            haptic.success();
-            setConfirmReset(false);
-            resetDemo();
-            setDraft(online.account?.user.nickname ?? '游客');
-          }}>
-          <Txt variant="caption" tone={confirmReset ? 'urgent' : 'faint'} style={{ textDecorationLine: 'underline' }}>
-            {confirmReset ? '再点一次，清空我的数据并恢复演示数据' : '恢复演示数据'}
-          </Txt>
-        </Press>
       </TabScrollView>
     </TabScreen>
   );
