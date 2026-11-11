@@ -7,6 +7,7 @@ import { haptic } from '@/components/haptic';
 import { useToast } from '@/components/Toast';
 import { Card, closeModal, ModalScreen, Press, Section, Txt } from '@/components/ui';
 import { formatDue, formatSession, formatWeeks, isUrgent } from '@/data/format';
+import { errorText, useOnline } from '@/data/online';
 import { useStore } from '@/data/store';
 import { sessionWeeks } from '@/data/schedule';
 import { useTheme } from '@/theme/useTheme';
@@ -16,6 +17,7 @@ export default function CourseDetail() {
   const { theme } = useTheme();
   const { courseById, homework, removeCourse, restoreCourse } = useStore();
   const toast = useToast();
+  const online = useOnline();
   // 删除后页面还在往下收起，这段时间里继续显示删之前的内容
   const found = courseById(id);
   const [last, setLast] = useState({ id, course: found });
@@ -36,6 +38,18 @@ export default function CourseDetail() {
   function remove() {
     if (!course) return;
     haptic.light();
+    // 服务器上的班：同时在服务器上退出。退出后要重新搜索加入，所以不给撤销
+    if (course.serverClassId) {
+      online
+        .leave(course.serverClassId)
+        .then(() => {
+          removeCourse(course.id);
+          closeModal();
+          toast(`已退出「${course.name}」`);
+        })
+        .catch((e) => toast(errorText(e)));
+      return;
+    }
     const removed = removeCourse(course.id);
     closeModal();
     if (!removed) return;
@@ -53,7 +67,7 @@ export default function CourseDetail() {
         {course.teacher} · {formatWeeks(course.weeks)}{course.members > 0 ? ` · ${course.members} 位同学已加入` : ''}
       </Txt>
       {!!course.source && <Txt variant="caption" tone="sub" style={{ marginTop: 8 }}>
-        {course.source.term} · {course.source.classId ? '教学班已识别' : '本地课程 · 教学班待确认'}
+        {course.source.term} · {course.serverClassId ? '已和班里同学连通' : course.source.classId ? '教学班已识别' : '还没连上教学班'}
         {course.source.className ? ` · ${course.source.className}` : ''}
       </Txt>}
 
@@ -98,17 +112,41 @@ export default function CourseDetail() {
         )}
       </Section>
 
+      {course.serverClassId && (
+        <View style={styles.actions}>
+          <Press
+            onPress={() =>
+              online.loggedIn ? router.push({ pathname: '/chat/[classId]', params: { classId: String(course.serverClassId) } }) : toast('登录后才能进班级聊天', { label: '登录', onPress: () => router.push('/login') })
+            }
+            style={[styles.action, { borderColor: theme.line }]}>
+            <Ionicons name="chatbubbles-outline" size={16} color={theme.sub} />
+            <Txt variant="sub" tone="sub">
+              班级聊天
+            </Txt>
+          </Press>
+          <Press onPress={() => router.push(`/board?classId=${course.serverClassId}`)} style={[styles.action, { borderColor: theme.line }]}>
+            <Ionicons name="podium-outline" size={16} color={theme.sub} />
+            <Txt variant="sub" tone="sub">
+              贡献榜
+            </Txt>
+          </Press>
+        </View>
+      )}
+
       <View style={styles.actions}>
-        <Press onPress={() => router.push(`/add-course?id=${course.id}`)} style={[styles.action, { borderColor: theme.line }]}>
-          <Ionicons name="create-outline" size={16} color={theme.sub} />
-          <Txt variant="sub" tone="sub">
-            编辑课程
-          </Txt>
-        </Press>
+        {/* 班级的上课时间来自教务，大家共用，不能自己改 */}
+        {!course.serverClassId && (
+          <Press onPress={() => router.push(`/add-course?id=${course.id}`)} style={[styles.action, { borderColor: theme.line }]}>
+            <Ionicons name="create-outline" size={16} color={theme.sub} />
+            <Txt variant="sub" tone="sub">
+              编辑课程
+            </Txt>
+          </Press>
+        )}
         <Press onPress={remove} style={[styles.action, { borderColor: theme.line }]}>
           <Ionicons name="trash-outline" size={16} color={theme.urgent} />
           <Txt variant="sub" tone="urgent">
-            从课表删除
+            {course.serverClassId ? '退出这个班' : '从课表删除'}
           </Txt>
         </Press>
       </View>

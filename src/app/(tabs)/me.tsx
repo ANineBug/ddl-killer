@@ -1,9 +1,13 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { useState } from 'react';
-import { Platform, StyleSheet, Switch, TextInput, View } from 'react-native';
+import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
+import * as ImagePicker from 'expo-image-picker';
+import { useEffect, useState } from 'react';
+import { ActivityIndicator, Platform, StyleSheet, Switch, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import type { MyClass } from '@/api/types';
+import { Avatar } from '@/components/Avatar';
 import { haptic } from '@/components/haptic';
 import { useToast } from '@/components/Toast';
 import { TabScreen } from '@/components/TabScreen';
@@ -13,6 +17,8 @@ import { errorText, useOnline } from '@/data/online';
 import { useStore } from '@/data/store';
 import { fonts, ThemeName, themeNames, themes } from '@/theme/tokens';
 import { useTheme } from '@/theme/useTheme';
+
+const TIER_NAMES = { newbie: '新同学', member: '同学', helper: '热心同学', trusted: '靠谱同学' } as const;
 
 export default function MeScreen() {
   const { theme } = useTheme();
@@ -24,6 +30,41 @@ export default function MeScreen() {
   const toast = useToast();
   // 登录了就用服务器上的昵称
   const nickname = online.account?.user.nickname ?? profile.nickname;
+  const [mine, setMine] = useState<MyClass[] | null>(null);
+  const [uploading, setUploading] = useState(false);
+
+  // 登录后拉一次"我在每个班的档位和贡献值"
+  const token = online.account?.token;
+  useEffect(() => {
+    if (!token) return setMine(null);
+    online
+      .me()
+      .then((m) => setMine(m.classes))
+      .catch(() => setMine([]));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token]);
+
+  // 换头像：选一张图、裁成正方形，压到 512 像素的 JPG 再传，一般只有几十 KB
+  async function pickAvatar() {
+    if (uploading) return;
+    const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: 'images', allowsEditing: true, aspect: [1, 1], quality: 1 });
+    if (res.canceled || !res.assets[0]) return;
+    const asset = res.assets[0];
+    setUploading(true);
+    try {
+      const ctx = ImageManipulator.manipulate(asset.uri);
+      if ((asset.width ?? 0) > 512) ctx.resize({ width: 512 });
+      const image = await ctx.renderAsync();
+      const out = await image.saveAsync({ compress: 0.8, format: SaveFormat.JPEG });
+      await online.setAvatar(out.uri, 'image/jpeg');
+      haptic.success();
+      toast('头像换好了');
+    } catch (e) {
+      toast(errorText(e));
+    } finally {
+      setUploading(false);
+    }
+  }
 
   const uploaded = homework.filter((h) => h.mine).length;
   const confirmed = homework.filter((h) => h.myReactions.includes('confirm')).length;
@@ -55,13 +96,23 @@ export default function MeScreen() {
         <Txt variant="display">我的</Txt>
 
         <Card style={styles.profile}>
-          <Press
-            onPress={() => setProfile({ avatarHue: profile.avatarHue + 1 })}
-            style={[styles.avatar, { backgroundColor: hue }]}>
-            <Txt style={{ fontFamily: fonts.serif, fontSize: 24, color: '#ffffff', fontWeight: '600' }}>
-              {nickname.slice(0, 1)}
-            </Txt>
-          </Press>
+          {online.account ? (
+            // 登录后点头像换图片；游客点头像只换颜色
+            <Press onPress={pickAvatar}>
+              <Avatar user={online.account.user} size={56} />
+              <View style={[styles.camera, { backgroundColor: theme.text }]}>
+                {uploading ? <ActivityIndicator size="small" color={theme.onText} /> : <Ionicons name="camera" size={11} color={theme.onText} />}
+              </View>
+            </Press>
+          ) : (
+            <Press
+              onPress={() => setProfile({ avatarHue: profile.avatarHue + 1 })}
+              style={[styles.avatar, { backgroundColor: hue }]}>
+              <Txt style={{ fontFamily: fonts.serif, fontSize: 24, color: '#ffffff', fontWeight: '600' }}>
+                {nickname.slice(0, 1)}
+              </Txt>
+            </Press>
+          )}
           <View style={{ flex: 1, marginLeft: 14 }}>
             {editing ? (
               <TextInput
@@ -85,7 +136,7 @@ export default function MeScreen() {
               </Press>
             )}
             <Txt variant="caption" tone="sub" style={{ marginTop: 4 }}>
-              {online.loggedIn ? '已登录 · 点名字改昵称' : '游客 · 只能看，登录后才能上传和确认'}
+              {online.loggedIn ? '点头像换图片，点名字改昵称' : '游客 · 只能看，登录后才能上传和确认'}
             </Txt>
           </View>
           {!online.loggedIn && (
@@ -112,6 +163,39 @@ export default function MeScreen() {
           </View>
         </Section>
 
+        {online.loggedIn && (
+          <Section title="我的贡献">
+            <Card>
+              {mine === null ? (
+                <ActivityIndicator style={{ padding: 16 }} />
+              ) : mine.length === 0 ? (
+                <Txt variant="sub" tone="sub" style={{ padding: 16 }}>
+                  导入课表或加入教学班以后，这里显示你在每个班的档位
+                </Txt>
+              ) : (
+                mine.map((c, i) => (
+                  <Press
+                    key={c.id}
+                    onPress={() => router.push(`/board?classId=${c.id}`)}
+                    style={[styles.row, i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.line }]}>
+                    <Txt variant="sub" numberOfLines={1} style={{ flex: 1 }}>
+                      {c.name}
+                    </Txt>
+                    <Txt variant="caption" tone="sub">
+                      {TIER_NAMES[c.myTier]} · {c.myScore} 分 ›
+                    </Txt>
+                  </Press>
+                ))
+              )}
+            </Card>
+            <Press onPress={() => router.push('/board')} hitSlop={8} style={{ marginTop: 8, marginLeft: 4 }}>
+              <Txt variant="caption" tone="accent">
+                看总榜 ›
+              </Txt>
+            </Press>
+          </Section>
+        )}
+
         <Section title="提醒">
           <Card>
             <ToggleRow label="截止前 1 天提醒" value={settings.remindDay} onChange={(v) => setSettings({ remindDay: v })} />
@@ -126,6 +210,11 @@ export default function MeScreen() {
           <Txt variant="caption" tone="faint" style={{ marginTop: 8, marginLeft: 4 }}>
             每条作业默认按这里提醒，也可以在作业详情里单独调整
           </Txt>
+          <Press onPress={() => router.push('/reminder-notice')} hitSlop={8} style={{ marginTop: 8, marginLeft: 4 }}>
+            <Txt variant="caption" tone="accent">
+              提醒可能不准时，以下内容你需要知道 ›
+            </Txt>
+          </Press>
         </Section>
 
         <Txt variant="caption" tone="faint" style={{ textAlign: 'center', marginTop: 26 }}>
@@ -211,6 +300,8 @@ function ToggleRow({ label, value, onChange, last }: { label: string; value: boo
 
 const styles = StyleSheet.create({
   profile: { flexDirection: 'row', alignItems: 'center', padding: 16, marginTop: 20 },
+  camera: { position: 'absolute', right: -2, bottom: -2, width: 20, height: 20, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 13, paddingHorizontal: 16 },
   login: { paddingHorizontal: 16, paddingVertical: 7, borderRadius: 999, borderWidth: 1, marginLeft: 10 },
   avatar: { width: 56, height: 56, borderRadius: 28, alignItems: 'center', justifyContent: 'center' },
   nameInput: { fontSize: 20, fontWeight: '600', borderBottomWidth: 1, paddingVertical: 2 },

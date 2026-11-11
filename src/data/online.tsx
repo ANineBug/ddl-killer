@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef } from 'react';
 import { AppState } from 'react-native';
 
 import { api, ApiError } from '@/api/client';
-import type { Me, ProposalKind, RemoteClass, RemoteDetail, RemoteHomework, UserRef } from '@/api/types';
+import type { BoardRow, ChatMessage, GlobalBoard, Me, ProposalKind, RemoteClass, RemoteDetail, RemoteHomework, UserRef } from '@/api/types';
 
 import { courseForServer, courseFromClass, fromRemote, localHomeworkId } from './remote';
 import { useStore } from './store';
@@ -210,7 +210,42 @@ export function useOnline() {
     [vote],
   );
 
+  // ---------- 聊天、排行榜 ----------
+
+  // after：只要比这条新的；不给就是最新 50 条
+  const messages = useCallback(
+    (classId: number, after?: number) => api<{ messages: ChatMessage[] }>(`/classes/${classId}/messages${after ? `?after=${after}` : ''}`).then((r) => r.messages),
+    [],
+  );
+  const send = useCallback(
+    (classId: number, text: string, homeworkId?: number) => api<ChatMessage>(`/classes/${classId}/messages`, { method: 'POST', body: { text, homeworkId } }),
+    [],
+  );
+  const classBoard = useCallback((classId: number) => api<{ board: BoardRow[] }>(`/classes/${classId}/board`).then((r) => r.board), []);
+  const globalBoard = useCallback(() => api<GlobalBoard>('/board'), []);
+
+  // ---------- 头像 ----------
+
+  // 传的是已经压缩好的图片地址（本机文件），读成二进制直接发上去
+  const setAvatar = useCallback(
+    async (uri: string, mime: string) => {
+      if (!account) return;
+      const blob = await (await fetch(uri)).blob();
+      const r = await api<{ avatar: string }>('/me/avatar', { method: 'PUT', raw: blob, contentType: mime });
+      setAccount({ ...account, user: { ...account.user, avatar: r.avatar } });
+    },
+    [account, setAccount],
+  );
+
   // ---------- 教学班 ----------
+
+  // 从课表删掉一门服务器上的课：登录了顺便在服务器上退出这个班
+  const leave = useCallback(
+    async (classId: number) => {
+      if (account) await api(`/classes/${classId}/join`, { method: 'DELETE' });
+    },
+    [account],
+  );
 
   const search = useCallback((term: string, q: string) => api<{ classes: RemoteClass[] }>(`/classes/search?term=${encodeURIComponent(term)}&q=${encodeURIComponent(q)}`), []);
 
@@ -227,7 +262,7 @@ export function useOnline() {
     [account, addJoinedCourse, sync, timetable.term, setTimetable],
   );
 
-  return { loggedIn: !!account, account, link, sync, refresh, requestCode, login, logout, rename, me, upload, edit, remove, react, detail, propose, vote, adopt, withdraw, voteDuplicate, search, join };
+  return { loggedIn: !!account, account, link, sync, refresh, requestCode, login, logout, rename, me, upload, edit, remove, react, detail, propose, vote, adopt, withdraw, voteDuplicate, messages, send, classBoard, globalBoard, setAvatar, leave, search, join };
 }
 
 export { ApiError, localHomeworkId };

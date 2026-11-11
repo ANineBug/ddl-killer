@@ -83,3 +83,14 @@ export type RemoteDetail = RemoteHomework & {
   proposals: RemoteProposal[];
   mergedFrom: { id: number; title: string }[];
 };
+
+export type ChatMessage = {
+  id: number;
+  user: UserRef & { tier: Tier; tierName: string };
+  text: string;
+  homework: { id: number; title: string; due: string | null } | null;
+  createdAt: string;
+};
+
+export type BoardRow = { user: UserRef; score: number; tier: Tier; tierName: string };
+export type GlobalBoard = { top: { rank: number; user: UserRef; score: number }[]; me: { score: number; rank: number | null } | null };

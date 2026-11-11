@@ -213,6 +213,17 @@ export default function HomeworkDetail() {
             }
           />
         )}
+        {item.remote && (
+          <Action
+            icon="chatbubbles-outline"
+            label="去讨论"
+            onPress={() =>
+              online.loggedIn
+                ? router.push({ pathname: '/chat/[classId]', params: { classId: String(item.remote!.classId), share: String(item.remote!.id) } })
+                : toast('登录后才能进班级聊天', { label: '登录', onPress: () => router.push('/login') })
+            }
+          />
+        )}
         <Action
           icon={item.ignored ? 'eye-outline' : 'eye-off-outline'}
           label={item.ignored ? '和我有关' : '与我无关'}

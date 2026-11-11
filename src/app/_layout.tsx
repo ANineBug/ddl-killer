@@ -1,5 +1,5 @@
 import { DefaultTheme, Stack, ThemeProvider as NavigationThemeProvider } from 'expo-router';
-import { View } from 'react-native';
+import { LogBox, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
@@ -8,6 +8,10 @@ import { Backdrop } from '@/components/ui';
 import { OnlineSync } from '@/data/online';
 import { StoreProvider } from '@/data/store';
 import { ThemeProvider } from '@/theme/useTheme';
+
+// 网页预览专有的一条无害警告：动画组件包 SVG 时给 DOM 传了 collapsable=false。手机上没有，
+// 但开发时会弹红条挡住点击，所以只屏蔽这一条
+LogBox.ignoreLogs(['Received `false` for a non-boolean attribute']);
 
 // 导航自带的底色设为透明，让我们自己的主题背景透出来
 const navigationTheme = {
@@ -38,6 +42,9 @@ export default function RootLayout() {
                   <Stack.Screen name="login" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
                   <Stack.Screen name="join-class" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
                   <Stack.Screen name="report" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
+                  <Stack.Screen name="chat/[classId]" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
+                  <Stack.Screen name="board" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
+                  <Stack.Screen name="reminder-notice" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
                 </Stack>
               </View>
             </NavigationThemeProvider>
