@@ -1,5 +1,6 @@
 import { type Context, Hono } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
+import { cors } from 'hono/cors';
 import { z } from 'zod';
 
 import { logout, requestCode, userFromToken, verifyCode } from './auth.ts';
@@ -60,6 +61,10 @@ function clientIp(c: Context) {
 
 export function createApp(ctx: Ctx) {
   const app = new Hono<Env>().basePath('/v1');
+
+  // 网页预览（localhost:8081）调用本机后端（localhost:8787）算跨域，要放行。
+  // 凭证放在请求头里、不用 cookie，所以允许任意来源也不会被别的网站冒用登录状态
+  app.use(cors({ origin: '*', allowHeaders: ['Authorization', 'Content-Type'], allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'] }));
 
   app.onError((err, c) => {
     if (err instanceof HttpError) {
