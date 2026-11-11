@@ -23,6 +23,16 @@ test('两个人导入同一门课（时间 + 教室相同）认成同一个班�
   await s.close();
 });
 
+test('只看时间 + 教室：课名写法不一样（比如少了几个字）也认成同一个班', async () => {
+  const s = await setup();
+  const a = await s.login('a@qq.com');
+  const b = await s.login('b@qq.com');
+  const ra = await s.call('POST', '/me/import', a, { term: TERM, courses: [probability] });
+  const rb = await s.call('POST', '/me/import', b, { term: TERM, courses: [{ ...probability, name: '概率论与数理统计' }] });
+  assert.equal(rb.data.courses[0].classId, ra.data.courses[0].classId);
+  await s.close();
+});
+
 test('同一时间同一教室，但单双周错开的，是两个班', async () => {
   const s = await setup();
   const a = await s.login('a@qq.com');

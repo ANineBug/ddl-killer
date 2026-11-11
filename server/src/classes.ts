@@ -53,10 +53,11 @@ function slotsOf(c: CourseInput): Slot[] {
 // ---------- 认班：这门课属于哪个教学班 ----------
 //
 // 1. 页面上带了教务的教学班 id，就按 id 认
-// 2. 否则按"时间 + 教室"认：同一学期、同一门课，在同一间教室、同一个星期几的同样几节、而且有重叠的周上课，
-//    就是同一个教学班。一间教室同一时间只能有一个班在上课，所以这样认不会认错。
-//    几个班合在一间教室上同一节课（合班）会被认成一个班，它们本来就是一起上课、一起布置作业。
-// 3. 讲座场地、实践场地这类不是真教室，同一时间可能有很多班，只有这种上课时间的课，再加上老师一起比对
+// 2. 否则按"时间 + 教室"认：同一学期，在同一间教室、同一个星期几的同样几节、而且有重叠的周上课，
+//    就是同一个教学班。课表里同一时间同一间教室只会有一门课，所以不用再比课名，
+//    课名在页面上带不带【调】、▲ 这些标记也不影响。
+// 3. 讲座场地、实践场地这类不是真教室（真实课表里就有一门课某一周在"讲座场地"上），
+//    如果一门课所有上课时间都在这种地方，才退一步用课名 + 老师 + 时间来认
 async function findClass(db: Db, term: string, c: CourseInput, slots: Slot[]): Promise<number | null> {
   if (c.jxbId) {
     const hit = await db.one<{ id: number }>('select id from classes where term = $1 and jxb_id = $2', [term, c.jxbId]);
@@ -67,16 +68,16 @@ async function findClass(db: Db, term: string, c: CourseInput, slots: Slot[]): P
   const votes = new Map<number, number>();
   const candidates = real.length > 0 ? real : slots;
   for (const s of candidates) {
-    const rows = await db.query<{ id: number; jxb_id: string | null; teacher: string }>(
-      `select distinct c.id, c.jxb_id, c.teacher from classes c join class_slots s on s.class_id = c.id
-       where c.term = $1 and c.name_key = $2 and s.weekday = $3 and s.period_from = $4 and s.period_to = $5
-         and s.room_key = $6 and s.weeks && $7::int[]`,
-      [term, key, s.weekday, s.from, s.to, s.roomKey, s.weeks],
+    const rows = await db.query<{ id: number; jxb_id: string | null; teacher: string; name_key: string }>(
+      `select distinct c.id, c.jxb_id, c.teacher, c.name_key from classes c join class_slots s on s.class_id = c.id
+       where c.term = $1 and s.weekday = $2 and s.period_from = $3 and s.period_to = $4
+         and s.room_key = $5 and s.weeks && $6::int[]`,
+      [term, s.weekday, s.from, s.to, s.roomKey, s.weeks],
     );
     for (const r of rows) {
-      // 两边都有教务 id 而且不一样，那就是两个不同的班（合班的情况），不能认成一个
+      // 两边都有教务 id 而且不一样，一定是两个班
       if (c.jxbId && r.jxb_id && r.jxb_id !== c.jxbId) continue;
-      if (real.length === 0 && r.teacher !== c.teacher) continue;
+      if (real.length === 0 && (r.name_key !== key || r.teacher !== c.teacher)) continue;
       votes.set(r.id, (votes.get(r.id) ?? 0) + 1);
     }
   }
