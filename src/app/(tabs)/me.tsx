@@ -1,12 +1,15 @@
 import { Ionicons } from '@expo/vector-icons';
+import { router } from 'expo-router';
 import { useState } from 'react';
 import { Platform, StyleSheet, Switch, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { haptic } from '@/components/haptic';
+import { useToast } from '@/components/Toast';
 import { TabScreen } from '@/components/TabScreen';
 import { TabScrollView } from '@/components/TabScroll';
 import { Card, Press, Section, Txt } from '@/components/ui';
+import { errorText, useOnline } from '@/data/online';
 import { useStore } from '@/data/store';
 import { fonts, ThemeName, themeNames, themes } from '@/theme/tokens';
 import { useTheme } from '@/theme/useTheme';
@@ -18,6 +21,10 @@ export default function MeScreen() {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(profile.nickname);
   const [confirmReset, setConfirmReset] = useState(false);
+  const online = useOnline();
+  const toast = useToast();
+  // 登录了就用服务器上的昵称
+  const nickname = online.account?.user.nickname ?? profile.nickname;
 
   const uploaded = homework.filter((h) => h.mine).length;
   const confirmed = homework.filter((h) => h.myReactions.includes('confirm')).length;
@@ -26,9 +33,18 @@ export default function MeScreen() {
 
   function saveName() {
     const name = draft.trim();
-    if (name) setProfile({ nickname: name });
-    else setDraft(profile.nickname);
     setEditing(false);
+    if (!name || name === nickname) {
+      setDraft(nickname);
+      return;
+    }
+    setProfile({ nickname: name });
+    if (online.loggedIn) {
+      online.rename(name).catch((e) => {
+        toast(errorText(e));
+        setDraft(nickname);
+      });
+    }
   }
 
   return (
@@ -44,7 +60,7 @@ export default function MeScreen() {
             onPress={() => setProfile({ avatarHue: profile.avatarHue + 1 })}
             style={[styles.avatar, { backgroundColor: hue }]}>
             <Txt style={{ fontFamily: fonts.serif, fontSize: 24, color: '#ffffff', fontWeight: '600' }}>
-              {profile.nickname.slice(0, 1)}
+              {nickname.slice(0, 1)}
             </Txt>
           </Press>
           <View style={{ flex: 1, marginLeft: 14 }}>
@@ -59,15 +75,27 @@ export default function MeScreen() {
                 style={[styles.nameInput, { color: theme.text, borderBottomColor: theme.accent }]}
               />
             ) : (
-              <Press onPress={() => setEditing(true)} style={{ flexDirection: 'row', alignItems: 'center' }}>
-                <Txt variant="title">{profile.nickname}</Txt>
+              <Press
+                onPress={() => {
+                  setDraft(nickname);
+                  setEditing(true);
+                }}
+                style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <Txt variant="title">{nickname}</Txt>
                 <Ionicons name="pencil" size={14} color={theme.faint} style={{ marginLeft: 8 }} />
               </Press>
             )}
             <Txt variant="caption" tone="sub" style={{ marginTop: 4 }}>
-              游客模式 · 点头像换颜色，点名字改昵称
+              {online.loggedIn ? '已登录 · 点名字改昵称' : '游客 · 只能看，登录后才能上传和确认'}
             </Txt>
           </View>
+          {!online.loggedIn && (
+            <Press onPress={() => router.push('/login')} style={[styles.login, { borderColor: theme.accent, backgroundColor: theme.accentSoft }]}>
+              <Txt variant="sub" tone="accent" style={{ fontWeight: '600' }}>
+                登录
+              </Txt>
+            </Press>
+          )}
         </Card>
 
         <View style={styles.stats}>
@@ -110,8 +138,21 @@ export default function MeScreen() {
         </Section>
 
         <Txt variant="caption" tone="faint" style={{ textAlign: 'center', marginTop: 26 }}>
-          版本 0.1 · 数据保存在这台手机上
+          {online.loggedIn ? '版本 0.1 · 作业和服务器同步，完成状态和提醒只存在这台手机上' : '版本 0.1 · 数据保存在这台手机上'}
         </Txt>
+        {online.loggedIn && (
+          <Press
+            hitSlop={8}
+            style={{ alignSelf: 'center', marginTop: 10 }}
+            onPress={() => {
+              haptic.select();
+              online.logout().then(() => toast('已退出登录'));
+            }}>
+            <Txt variant="caption" tone="faint" style={{ textDecorationLine: 'underline' }}>
+              退出登录
+            </Txt>
+          </Press>
+        )}
         {/* 点一次变成确认文字，3 秒内再点一次才真正重置 */}
         <Press
           hitSlop={8}
@@ -126,7 +167,7 @@ export default function MeScreen() {
             haptic.success();
             setConfirmReset(false);
             resetDemo();
-            setDraft('游客');
+            setDraft(online.account?.user.nickname ?? '游客');
           }}>
           <Txt variant="caption" tone={confirmReset ? 'urgent' : 'faint'} style={{ textDecorationLine: 'underline' }}>
             {confirmReset ? '再点一次，清空我的数据并恢复演示数据' : '恢复演示数据'}
@@ -199,6 +240,7 @@ function ToggleRow({ label, value, onChange, last }: { label: string; value: boo
 
 const styles = StyleSheet.create({
   profile: { flexDirection: 'row', alignItems: 'center', padding: 16, marginTop: 20 },
+  login: { paddingHorizontal: 16, paddingVertical: 7, borderRadius: 999, borderWidth: 1, marginLeft: 10 },
   avatar: { width: 56, height: 56, borderRadius: 28, alignItems: 'center', justifyContent: 'center' },
   nameInput: { fontSize: 20, fontWeight: '600', borderBottomWidth: 1, paddingVertical: 2 },
   stats: { flexDirection: 'row', gap: 10, marginTop: 12 },

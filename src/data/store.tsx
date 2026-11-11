@@ -1,6 +1,9 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createContext, ReactNode, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 
+import { setToken } from '@/api/client';
+import type { UserRef } from '@/api/types';
+
 import { mockCourses, mockHomework } from './mock';
 import { Course, Homework, Profile, ReactionKey, Reminder, Settings, TimetableSettings } from './types';
 import { mergeImportedCourses, migrateCourse } from './schedule';
@@ -9,7 +12,20 @@ import { createPersistence } from './persistence';
 export type NewHomework = Pick<Homework, 'courseId' | 'title' | 'detail' | 'due' | 'submit' | 'hasPhoto'>;
 export type NewCourse = Omit<Course, 'id' | 'hue' | 'members'>;
 
+// 登录后的账号：凭证和服务器上的我
+export type Account = { token: string; user: UserRef };
+
 type StoreValue = {
+  account: Account | null;
+  setAccount: (a: Account | null) => void;
+  // 给课挂上服务器教学班编号：{ 课的 id: 教学班编号 }
+  linkCourses: (links: Record<string, number>) => void;
+  // 用服务器上最新的作业替换这几门课的服务器作业；只在手机上的作业不动
+  replaceRemote: (courseIds: string[], items: Homework[]) => void;
+  // 更新或加入一条服务器作业（上传、确认、改完以后用接口返回的最新内容）
+  upsertRemote: (item: Homework) => void;
+  // 手动加入教学班后，把这门课加进课表
+  addJoinedCourse: (c: Course) => void;
   courses: Course[];
   homework: Homework[];
   profile: Profile;
@@ -41,6 +57,8 @@ type StoreValue = {
 };
 
 const STORE_KEY = 'store.v1';
+// 登录凭证单独存，"恢复演示数据"不会把人登出
+const AUTH_KEY = 'auth.v1';
 
 const defaultProfile: Profile = { nickname: '游客', avatarHue: 0 };
 const defaultSettings: Settings = { remindDay: true, remindHours: true, quietNight: true };
@@ -65,6 +83,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [profile, setProfileState] = useState<Profile>(defaultProfile);
   const [settings, setSettingsState] = useState<Settings>(defaultSettings);
   const [timetable, setTimetableState] = useState<TimetableSettings>({ starts: {} });
+  const [account, setAccountState] = useState<Account | null>(null);
   const homeworkRef = useRef(homework);
   useLayoutEffect(() => { homeworkRef.current = homework; }, [homework]);
   const persistence = useMemo(() => createPersistence(AsyncStorage, STORE_KEY), []);
@@ -72,7 +91,16 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   // 打开 app 时先读出上次保存的数据；第一次打开没有保存过，就用演示数据
   useEffect(() => {
-    AsyncStorage.getItem(STORE_KEY)
+    // 先读登录状态，再读数据；两个都读完才画界面
+    AsyncStorage.getItem(AUTH_KEY)
+      .then((raw) => {
+        if (!raw) return;
+        const a = JSON.parse(raw) as Account;
+        setToken(a.token);
+        setAccountState(a);
+      })
+      .catch(() => {})
+      .then(() => AsyncStorage.getItem(STORE_KEY))
       .then((raw) => {
         if (!raw) return;
         const saved = JSON.parse(raw, reviveDates) as Partial<Saved>;
@@ -97,6 +125,41 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, [ready, courses, homework, profile, settings, timetable, persistence]);
 
   const courseById = useCallback((id: string) => courses.find((c) => c.id === id), [courses]);
+
+  const setAccount = useCallback((a: Account | null) => {
+    setToken(a?.token ?? null);
+    setAccountState(a);
+    (a ? AsyncStorage.setItem(AUTH_KEY, JSON.stringify(a)) : AsyncStorage.removeItem(AUTH_KEY)).catch(() => {});
+  }, []);
+
+  const linkCourses = useCallback((links: Record<string, number>) => {
+    setCourses((list) => list.map((c) => (links[c.id] !== undefined && c.serverClassId !== links[c.id] ? { ...c, serverClassId: links[c.id] } : c)));
+  }, []);
+
+  const replaceRemote = useCallback((courseIds: string[], items: Homework[]) => {
+    setHomework((list) => {
+      const old = new Map(list.filter((h) => h.remote).map((h) => [h.id, h]));
+      const keep = list.filter((h) => !(h.remote && courseIds.includes(h.courseId)) && !items.some((x) => x.id === h.id));
+      // 完成状态、自己设的提醒只存在手机上，换成新内容时接着用
+      const fresh = items.map((x) => {
+        const prev = old.get(x.id);
+        return prev ? { ...x, done: prev.done, reminders: prev.reminders, dupVote: prev.dupVote } : x;
+      });
+      return [...fresh, ...keep];
+    });
+  }, []);
+
+  const upsertRemote = useCallback((item: Homework) => {
+    setHomework((list) => {
+      const prev = list.find((h) => h.id === item.id);
+      const next = prev ? { ...item, done: prev.done, reminders: prev.reminders, dupVote: prev.dupVote } : item;
+      return prev ? list.map((h) => (h.id === item.id ? next : h)) : [next, ...list];
+    });
+  }, []);
+
+  const addJoinedCourse = useCallback((c: Course) => {
+    setCourses((list) => (list.some((x) => x.serverClassId === c.serverClassId) ? list : [...list, { ...c, hue: list.length % 5 }]));
+  }, []);
 
   const toggleDone = useCallback((id: string) => {
     setHomework((list) => list.map((h) => (h.id === id ? { ...h, done: !h.done } : h)));
@@ -240,6 +303,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo(
     () => ({
+      account,
+      setAccount,
+      linkCourses,
+      replaceRemote,
+      upsertRemote,
+      addJoinedCourse,
       courses,
       homework,
       profile,
@@ -265,6 +334,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       resetDemo,
     }),
     [
+      account,
+      setAccount,
+      linkCourses,
+      replaceRemote,
+      upsertRemote,
+      addJoinedCourse,
       courses,
       homework,
       profile,

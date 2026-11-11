@@ -21,6 +21,7 @@ export const isoWeekday = (d: Date) => ((d.getDay() + 6) % 7) + 1;
 
 // short：列表里空间小，一周以外的日期写成「11/15」，免得把「截止」挤掉
 export function formatDue(d: Date, short = false) {
+  if (isTbd(d)) return '待定';
   const diff = dayDiff(d);
   if (diff === 0) return `${d.getHours() >= 18 ? '今晚' : '今天'} ${hhmm(d)}`;
   if (diff === 1) return `明天 ${hhmm(d)}`;
@@ -30,7 +31,12 @@ export function formatDue(d: Date, short = false) {
   return `${date} ${hhmm(d)}`;
 }
 
+// 截止时间"待定"的作业，服务器不给日期，手机上用一个很远的日期占位排在最后，显示时要写成"待定"
+export const TBD_DUE = new Date('2099-12-31T15:59:00Z');
+export const isTbd = (d: Date) => d.getTime() === TBD_DUE.getTime();
+
 export function formatRemaining(d: Date) {
+  if (isTbd(d)) return '时间待定';
   const ms = d.getTime() - Date.now();
   if (ms <= 0) return '已截止';
   const h = Math.floor(ms / 3600000);

@@ -5,6 +5,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { ToastProvider } from '@/components/Toast';
 import { Backdrop } from '@/components/ui';
+import { OnlineSync } from '@/data/online';
 import { StoreProvider } from '@/data/store';
 import { ThemeProvider } from '@/theme/useTheme';
 
@@ -20,6 +21,8 @@ export default function RootLayout() {
     <GestureHandlerRootView style={{ flex: 1 }}>
     <SafeAreaProvider>
       <StoreProvider>
+        {/* 和服务器同步作业；不画任何东西 */}
+        <OnlineSync />
         <ThemeProvider>
           <ToastProvider>
             <NavigationThemeProvider value={navigationTheme}>
@@ -32,6 +35,8 @@ export default function RootLayout() {
                   <Stack.Screen name="upload" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
                   <Stack.Screen name="add-course" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
                   <Stack.Screen name="import/swufe" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
+                  <Stack.Screen name="login" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
+                  <Stack.Screen name="join-class" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
                 </Stack>
               </View>
             </NavigationThemeProvider>

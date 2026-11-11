@@ -9,17 +9,28 @@ import { ReminderCard } from '@/components/ReminderCard';
 import { useToast } from '@/components/Toast';
 import { Card, closeModal, ModalScreen, Press, PrimaryButton, Txt } from '@/components/ui';
 import { formatAgo, formatDue, formatRemaining, isUrgent } from '@/data/format';
+import { errorText, useOnline } from '@/data/online';
 import { useStore } from '@/data/store';
-import { ReactionKey } from '@/data/types';
+import { RemoteInfo, ReactionKey } from '@/data/types';
 import { useTheme } from '@/theme/useTheme';
 
 const reactions: ReactionKey[] = ['confirm', 'thumbs', 'cry'];
+
+const STATE_LABEL: Record<RemoteInfo['state'], string> = {
+  pending: '待确认',
+  confirmed: '已确认',
+  disputed: '有争议',
+  cancelled: '已取消',
+  closed: '已截止',
+  merged: '已合并',
+};
 
 export default function HomeworkDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { theme } = useTheme();
   const { homework, courseById, toggleDone, toggleReaction, removeHomework, restoreHomework } = useStore();
   const toast = useToast();
+  const online = useOnline();
   // 删除后页面还在往下收起，这段时间里继续显示删之前的内容
   const found = homework.find((h) => h.id === id);
   const [last, setLast] = useState({ id, item: found });
@@ -37,9 +48,32 @@ export default function HomeworkDetail() {
   const course = courseById(item.courseId);
   const urgent = !item.done && isUrgent(item.due);
 
+  // 服务器上的作业：确认和回应要登录，结果以服务器为准
+  function react(r: ReactionKey) {
+    if (!item) return;
+    if (!item.remote) return toggleReaction(item.id, r);
+    if (!online.loggedIn) {
+      toast('登录后才能确认和回应', { label: '登录', onPress: () => router.push('/login') });
+      return;
+    }
+    online.react(item, r).catch((e) => toast(errorText(e)));
+  }
+
   function remove() {
     if (!item) return;
     haptic.light();
+    if (item.remote) {
+      // 服务器上删了就没法撤销，所以不给"撤销"
+      const title = item.title;
+      online
+        .remove(item)
+        .then(() => {
+          closeModal();
+          toast(`已删除「${title}」`);
+        })
+        .catch((e) => toast(errorText(e)));
+      return;
+    }
     const removed = removeHomework(item.id);
     closeModal();
     if (removed) toast(`已删除「${removed.title}」`, { label: '撤销', onPress: () => restoreHomework(removed) });
@@ -68,6 +102,31 @@ export default function HomeworkDetail() {
         {item.title}
       </Txt>
 
+      {item.remote && (
+        <View style={styles.states}>
+          <View style={[styles.state, { borderColor: item.remote.state === 'disputed' ? theme.urgent : theme.line }]}>
+            <Txt variant="caption" tone={item.remote.state === 'disputed' ? 'urgent' : item.remote.state === 'confirmed' ? 'accent' : 'sub'}>
+              {item.remote.state === 'pending' && item.remote.uploaderCount > 1 ? `${item.remote.uploaderCount} 人上传 · 待确认` : STATE_LABEL[item.remote.state]}
+            </Txt>
+          </View>
+          {item.remote.postponed && (
+            <View style={[styles.state, { borderColor: theme.line }]}>
+              <Txt variant="caption" tone="sub">已延期</Txt>
+            </View>
+          )}
+          {item.remote.optional && (
+            <View style={[styles.state, { borderColor: theme.line }]}>
+              <Txt variant="caption" tone="sub">选做（非必做）</Txt>
+            </View>
+          )}
+          {item.remote.groupWork && (
+            <View style={[styles.state, { borderColor: theme.line }]}>
+              <Txt variant="caption" tone="sub">小组作业</Txt>
+            </View>
+          )}
+        </View>
+      )}
+
       <View style={styles.dueRow}>
         <Txt variant="title" tone={urgent ? 'urgent' : 'text'}>
           {formatDue(item.due)}
@@ -82,6 +141,7 @@ export default function HomeworkDetail() {
       <Card style={{ marginTop: 20 }}>
         <InfoRow icon="paper-plane-outline" label="提交方式" value={item.submit} />
         <InfoRow icon="location-outline" label="上课地点" value={[...new Set(course?.sessions.map((s) => s.location).filter(Boolean) ?? [])].join('、') || '—'} />
+        {item.remote && <InfoRow icon="megaphone-outline" label="来源" value={item.remote.source} />}
         <InfoRow icon="person-outline" label="上传" value={`${item.uploader} · ${formatAgo(item.uploadedAt)}`} last />
       </Card>
 
@@ -112,12 +172,12 @@ export default function HomeworkDetail() {
             kind={r}
             count={item.reactions[r]}
             mine={item.myReactions.includes(r)}
-            onPress={() => toggleReaction(item.id, r)}
+            onPress={() => react(r)}
           />
         ))}
       </View>
       <Txt variant="caption" tone="faint" style={{ marginTop: 10 }}>
-        确认的同学越多，这条作业越可信
+        {item.remote?.confirmedOld ? '此作业已修改过，该确认是修改前的确认，可以再确认一次' : '确认的同学越多，这条作业越可信'}
       </Txt>
 
       {/* 只有自己上传的作业才能改和删；别人上传的有问题，用回应告诉大家 */}
@@ -206,6 +266,8 @@ function InfoRow({
 }
 
 const styles = StyleSheet.create({
+  states: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 10 },
+  state: { paddingHorizontal: 9, paddingVertical: 2, borderRadius: 999, borderWidth: 1 },
   dueRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 14 },
   pill: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, borderWidth: 1 },
   info: { flexDirection: 'row', alignItems: 'center', paddingVertical: 13, paddingHorizontal: 16 },

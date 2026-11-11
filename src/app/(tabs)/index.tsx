@@ -2,6 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Easing, Platform, StyleSheet, View } from 'react-native';
+import { RefreshControl } from 'react-native-gesture-handler';
 import Reanimated, { Easing as REasing, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -12,6 +13,7 @@ import { TabScrollView } from '@/components/TabScroll';
 import { useToast } from '@/components/Toast';
 import { Card, Chip, Press, Section, Txt } from '@/components/ui';
 import { dayDiff, formatDue, formatToday, isUrgent } from '@/data/format';
+import { errorText, useOnline } from '@/data/online';
 import { useStore } from '@/data/store';
 import { Homework } from '@/data/types';
 import { greeting, phaseAt } from '@/theme/tokens';
@@ -29,6 +31,18 @@ export default function HomeworkScreen() {
   const { homework } = useStore();
   const insets = useSafeAreaInsets();
   const [showDone, setShowDone] = useState(false);
+  const online = useOnline();
+  const toast = useToast();
+  const [refreshing, setRefreshing] = useState(false);
+
+  // 下拉刷新：重新认班、重新拉作业
+  function refresh() {
+    setRefreshing(true);
+    online
+      .refresh()
+      .catch((e) => toast(errorText(e)))
+      .finally(() => setRefreshing(false));
+  }
 
   const pending = useMemo(
     () => homework.filter((h) => !h.done).sort((a, b) => a.due.getTime() - b.due.getTime()),
@@ -57,7 +71,10 @@ export default function HomeworkScreen() {
 
   return (
     <TabScreen index={0}>
-      <TabScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingTop: insets.top + 20, paddingHorizontal: 20, paddingBottom: 130 }}>
+      <TabScrollView
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={theme.sub} colors={[theme.accent]} />}
+        contentContainerStyle={{ paddingTop: insets.top + 20, paddingHorizontal: 20, paddingBottom: 130 }}>
         <View style={styles.header}>
           <View>
             <Txt variant="caption" tone="sub">

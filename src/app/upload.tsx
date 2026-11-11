@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { StyleSheet } from 'react-native';
 
@@ -8,12 +8,15 @@ import { TimePicker } from '@/components/TimePicker';
 import { useToast } from '@/components/Toast';
 import { Chip, ChipGroup, closeModal, Field, ModalScreen, Press, PrimaryButton, Txt } from '@/components/ui';
 import { dayDiff, hhmm, isoWeekday, weekdayNames } from '@/data/format';
+import { errorText, useOnline } from '@/data/online';
 import { useStore } from '@/data/store';
 import { SubmitMethod } from '@/data/types';
 import { useTheme } from '@/theme/useTheme';
 
 const times = ['08:00', '12:00', '18:00', '23:59'];
 const methods: SubmitMethod[] = ['纸质', '学习通', '邮箱', '其他'];
+// 作业是从哪听来的，方便大家判断靠不靠谱
+const sources = ['课堂口头', '学习通', '群通知'];
 
 function dayFromToday(offset: number) {
   const d = new Date();
@@ -34,6 +37,8 @@ export default function Upload() {
   const { theme } = useTheme();
   const { courses: allCourses, homework, addHomework, updateHomework, courseById, timetable } = useStore();
   const toast = useToast();
+  const online = useOnline();
+  const [busy, setBusy] = useState(false);
   // 带着 id 打开就是编辑自己上传过的作业，表单先填好原来的内容
   const { id } = useLocalSearchParams<{ id?: string }>();
   const editing = homework.find((h) => h.id === id && h.mine);
@@ -53,6 +58,11 @@ export default function Upload() {
   const [submit, setSubmit] = useState<SubmitMethod>(editing?.submit ?? '学习通');
   const [detail, setDetail] = useState(editing?.detail ?? '');
   const [hasPhoto, setHasPhoto] = useState(editing?.hasPhoto ?? false);
+  const [source, setSource] = useState(editing?.remote?.source ?? '课堂口头');
+  const course = courseId ? courseById(courseId) : undefined;
+  // 这门课已经接上服务器了：发布到班里，要先登录
+  const shared = !!course?.serverClassId;
+  const needLogin = shared && !online.loggedIn;
 
   const ready = courseId !== null && title.trim().length > 0;
   const quickDays = nextDays();
@@ -60,12 +70,28 @@ export default function Upload() {
   const customDate = dayDiff(date) > 6;
   const customTime = !times.includes(time);
 
-  function publish() {
-    if (!courseId) return;
+  async function publish() {
+    if (!courseId || busy) return;
     const due = new Date(date);
     const [h, m] = time.split(':').map(Number);
     due.setHours(h, m, 0, 0);
     const data = { courseId, title: title.trim(), detail: detail.trim(), due, submit, hasPhoto };
+    if (shared) {
+      // 先等服务器收下再关页面；被拒绝（比如新同学今天传满了）就留在这里，内容不丢
+      setBusy(true);
+      try {
+        const payload = { title: data.title, detail: data.detail, due, submit, source };
+        if (editing?.remote) await online.edit(editing, { ...payload, dueKind: 'at', due: due.toISOString() });
+        else await online.upload(course!.serverClassId!, payload);
+        closeModal();
+        toast(editing ? '已保存修改' : '已发布，班里的同学都能看到了');
+      } catch (e) {
+        toast(errorText(e));
+      } finally {
+        setBusy(false);
+      }
+      return;
+    }
     closeModal();
     if (editing) {
       updateHomework(editing.id, data);
@@ -73,14 +99,19 @@ export default function Upload() {
       return;
     }
     addHomework(data);
-    const course = courseById(courseId);
     toast(course?.source ? '已保存在本机，联网共享功能尚未接入' : `已发布，同课的 ${course?.members ?? 0} 位同学都能看到了`);
   }
 
   return (
     <ModalScreen
       title={editing ? '编辑作业' : '上传作业'}
-      footer={<PrimaryButton label={editing ? '保存' : '发布'} onPress={publish} disabled={!ready} />}>
+      footer={
+        needLogin ? (
+          <PrimaryButton label="登录后发布" onPress={() => router.push('/login')} />
+        ) : (
+          <PrimaryButton label={busy ? '发布中…' : editing ? '保存' : '发布'} onPress={publish} disabled={!ready || busy} />
+        )
+      }>
       {courses.length === 0 && (
         <Txt variant="caption" tone="faint">
           课表里还没有课，先去「课表」添加课程，才能给它上传作业。
@@ -144,8 +175,18 @@ export default function Upload() {
         ))}
       </ChipGroup>
 
+      {shared && (
+        <ChipGroup label="从哪知道的">
+          {sources.map((x) => (
+            <Chip key={x} label={x} active={source === x} onPress={() => setSource(x)} />
+          ))}
+        </ChipGroup>
+      )}
+
       <Field label="要求（可选）" placeholder="页码、题号、格式要求……" value={detail} onChangeText={setDetail} multiline />
 
+      {/* 照片这一版还不上传，接上服务器的课先不显示，免得以为传上去了 */}
+      {!shared && (
       <Press
         onPress={() => setHasPhoto((v) => !v)}
         style={[styles.photo, { borderColor: hasPhoto ? theme.accent : theme.line, backgroundColor: hasPhoto ? theme.accentSoft : 'transparent' }]}>
@@ -154,6 +195,7 @@ export default function Upload() {
           {hasPhoto ? '已添加 1 张照片（演示）' : '拍黑板 / 拍 PPT'}
         </Txt>
       </Press>
+      )}
     </ModalScreen>
   );
 }

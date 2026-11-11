@@ -161,7 +161,7 @@ function TimetableContent() {
               <Press accessibilityLabel="从教务导入课表" onPress={() => router.push('/import/swufe')} style={[styles.round, { borderColor: theme.line }]}>
                 <Ionicons name="download-outline" size={20} color={theme.text} />
               </Press>
-              <Press accessibilityLabel="手动添加课程" onPress={() => router.push('/add-course')} style={[styles.round, { borderColor: theme.line }]}>
+              <Press accessibilityLabel="搜索加入教学班" onPress={() => router.push('/join-class')} style={[styles.round, { borderColor: theme.line }]}>
                 <Ionicons name="add" size={22} color={theme.text} />
               </Press>
             </View>
@@ -223,18 +223,18 @@ function TimetableContent() {
                     课表还是空的
                   </Txt>
                   <Txt variant="caption" tone="faint" style={{ marginTop: 6 }}>
-                    从教务导入，或手动添加课程
+                    从教务导入，或搜索加入同学已经导入的班
                   </Txt>
                   <Press onPress={() => router.push('/import/swufe')} style={[styles.emptyButton, { borderColor: theme.accent, backgroundColor: theme.accentSoft }]}>
                     <Ionicons name="download-outline" size={16} color={theme.accent} />
                     <Txt variant="sub" tone="accent" style={{ marginLeft: 4 }}>从教务导入</Txt>
                   </Press>
                   <Press
-                    onPress={() => router.push('/add-course')}
+                    onPress={() => router.push('/join-class')}
                     style={[styles.emptyButton, { borderColor: theme.line, backgroundColor: theme.card }]}>
                     <Ionicons name="add" size={16} color={theme.text} />
                     <Txt variant="sub" style={{ marginLeft: 4 }}>
-                      添加课程
+                      搜索加入
                     </Txt>
                   </Press>
                 </View>
@@ -244,7 +244,7 @@ function TimetableContent() {
 
           {courses.length > 0 && (
             <Txt variant="caption" tone="faint" style={{ marginTop: 18, textAlign: 'center' }}>
-              {timetable.term ? '同一课程的多个课块共用课程详情和作业' : '右上角可从教务导入课表，或手动添加课程'}
+              {timetable.term ? '同一课程的多个课块共用课程详情和作业' : '右上角可从教务导入课表，或搜索加入教学班'}
             </Txt>
           )}
         </View>
