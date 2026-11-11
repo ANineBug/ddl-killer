@@ -8,7 +8,7 @@ import { useToast } from '@/components/Toast';
 import { Chip, ChipGroup, closeModal, Field, ModalScreen, Press, PrimaryButton, Txt } from '@/components/ui';
 import { dayDiff, formatDue, hhmm, isoWeekday, isTbd, weekdayNames } from '@/data/format';
 import { errorText, useOnline } from '@/data/online';
-import { nextClassTime } from '@/data/periods';
+import { nextClass as findNextClass } from '@/data/periods';
 import { useStore } from '@/data/store';
 import { SubmitMethod } from '@/data/types';
 import { useTheme } from '@/theme/useTheme';
@@ -23,6 +23,15 @@ function dayFromToday(offset: number) {
   d.setHours(0, 0, 0, 0);
   d.setDate(d.getDate() + offset);
   return d;
+}
+
+// 今天 / 明天 / 周五 / 11 月 20 日
+function dayLabel(d: Date) {
+  const diff = dayDiff(d);
+  if (diff === 0) return '今天';
+  if (diff === 1) return '明天';
+  if (diff > 1 && diff < 7) return weekdayNames[isoWeekday(d)];
+  return `${d.getMonth() + 1} 月 ${d.getDate()} 日`;
 }
 
 function nextDays() {
@@ -66,7 +75,8 @@ export default function Upload() {
   // 这门课已经接上服务器了：发布到班里，要先登录
   const shared = !!course?.serverClassId;
   const needLogin = shared && !online.loggedIn;
-  const nextClass = course ? nextClassTime(course, course.source ? timetable.starts[course.source.term] : undefined) : null;
+  const upcoming = course ? findNextClass(course, course.source ? timetable.starts[course.source.term] : undefined) : null;
+  const nextClass = upcoming?.at ?? null;
   // 这门课已经有人传过的、还没截止的作业：发布前先看一眼，免得重复传
   const existing = shared && !editing ? homework.filter((h) => h.courseId === courseId && h.remote && h.remote.state !== 'closed' && h.remote.state !== 'cancelled') : [];
 
@@ -159,7 +169,7 @@ export default function Upload() {
       )}
       {shared && dueKind === 'next_class' && (
         <Txt variant="caption" tone={nextClass ? 'sub' : 'urgent'} style={{ marginTop: 8, marginLeft: 4 }}>
-          {nextClass ? `下次上课：${formatDue(nextClass)}，按这个时间提醒` : '课表里找不到这门课接下来的上课时间，请选具体时间'}
+          {upcoming ? `下次上课：${dayLabel(upcoming.at)}第 ${upcoming.period} 节，上课前提醒` : '课表里找不到这门课接下来的上课时间，请选具体时间'}
         </Txt>
       )}
       {shared && dueKind === 'tbd' && (

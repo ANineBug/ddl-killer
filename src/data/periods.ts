@@ -22,6 +22,11 @@ const isoWeekday = (d: Date) => (d.getDay() === 0 ? 7 : d.getDay());
 // 「下次课前」：这门课下一次上课的开始时间。
 // 知道第一周周一是哪天，就按周次算（单双周、跳周都对）；不知道就只看星期几
 export function nextClassTime(course: Course, termStart: string | undefined, now = new Date()): Date | null {
+  return nextClass(course, termStart, now)?.at ?? null;
+}
+
+// 同上，另外告诉你是第几节开始的。界面上只说"哪天第几节"，不写几点（钟点是推算的，不一定准）
+export function nextClass(course: Course, termStart: string | undefined, now = new Date()): { at: Date; period: number } | null {
   for (let i = 0; i < 70; i++) {
     const day = new Date(now);
     day.setHours(0, 0, 0, 0);
@@ -34,10 +39,10 @@ export function nextClassTime(course: Course, termStart: string | undefined, now
         const [h, m] = (PERIOD_START[s.from] ?? '08:00').split(':').map(Number);
         const at = new Date(day);
         at.setHours(h, m, 0, 0);
-        return at;
+        return { at, period: s.from };
       })
-      .filter((at) => at > now)
-      .sort((a, b) => a.getTime() - b.getTime());
+      .filter((c) => c.at > now)
+      .sort((a, b) => a.at.getTime() - b.at.getTime());
     if (candidates.length) return candidates[0];
   }
   return null;
