@@ -208,6 +208,40 @@ test('重复：投票合并，留下先传的；列表里只剩一条，标"已�
   await s.close();
 });
 
+test('重复合并保护先传的：后传的收回确认分、再扣 3 分；确认转给先传的，够了就 +10；拆回来退还', async () => {
+  const s = await setup();
+  const { tokens: [a, b, c, d, e], classId } = await classWith(s, 6); // 确认、重复门槛都是 2
+  const first = (await s.call('POST', `/classes/${classId}/homework`, a, hw(s, '第三章习题'))).data.id;
+  s.tick(60_000);
+  const second = (await s.call('POST', `/classes/${classId}/homework`, b, hw(s, '三章课后题'))).data.id;
+
+  // 后传的那条先被两个人确认了，b 拿到 10 分；先传的那条只有 e 确认过
+  await s.call('POST', `/homework/${second}/confirm`, c);
+  await s.call('POST', `/homework/${second}/confirm`, d);
+  await s.call('POST', `/homework/${first}/confirm`, e);
+  assert.equal(await score(s, classId, b), 10);
+  assert.equal(await score(s, classId, a), 0);
+
+  const p = await s.call('POST', `/homework/${second}/proposals`, c, { kind: 'duplicate', targetId: first });
+  await s.call('POST', `/proposals/${p.data.id}/vote`, d, { agree: true });
+  assert.equal((await s.call('POST', `/proposals/${p.data.id}/vote`, e, { agree: true })).data.status, 'applied');
+
+  // b：10 分收回，再扣 3；a：c、d 的确认转过来，加上 e 的够了门槛，+10
+  assert.equal(await score(s, classId, b), -3);
+  assert.equal(await score(s, classId, a), 10);
+  const kept = await s.call('GET', `/homework/${first}`, a);
+  assert.equal(kept.data.state, 'confirmed');
+  assert.equal(kept.data.confirms.current, 3);
+
+  // 大家觉得其实不是重复：拆回来，b 扣掉的都退回，a 已经拿到的分不动
+  const un = await s.call('POST', `/homework/${second}/proposals`, b, { kind: 'unduplicate' });
+  await s.call('POST', `/proposals/${un.data.id}/vote`, c, { agree: true });
+  assert.equal((await s.call('POST', `/proposals/${un.data.id}/vote`, d, { agree: true })).data.status, 'applied');
+  assert.equal(await score(s, classId, b), 10);
+  assert.equal(await score(s, classId, a), 10);
+  await s.close();
+});
+
 test('不是班里的人不能传、不能确认；游客不能传', async () => {
   const s = await setup();
   const { tokens: [a], classId } = await classWith(s, 2);

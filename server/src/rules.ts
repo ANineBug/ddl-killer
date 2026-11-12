@@ -48,6 +48,7 @@ export const POINTS = {
   correctionAdopted: 5, // 自己提的纠错生效
   updateAdopted: 3, // 自己提的更新生效
   corrected: -5, // 自己传的作业被别人纠错
+  duplicated: -3, // 自己传的作业和别人先传的重复了，被合并掉（另外，它被确认拿到的分也收回）
 };
 
 // ---------- 频率限制 ----------

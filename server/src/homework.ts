@@ -533,6 +533,25 @@ async function closeProposal(db: Db, id: number, status: string, now: Date, extr
   );
 }
 
+// 合并重复作业时保护先传的同学：
+//   后传的那条因为被确认拿到的分收回，另外再扣 3 分
+//   点在后传那条上的确认，转给先传的那条；够了门槛，先传的同学 +10
+async function mergePoints(db: Db, keep: HwRow, drop: HwRow, proposalId: number, now: Date) {
+  const earned = await db.one<{ n: number }>(
+    `select coalesce(sum(delta), 0)::int n from points where homework_id = $1 and user_id = $2 and reason in ('upload_confirmed', 'merged_away')`,
+    [drop.id, drop.uploader_id],
+  );
+  if ((earned?.n ?? 0) > 0) await addPoints(db, drop.uploader_id, drop.class_id, -earned!.n, 'merged_away', drop.id, proposalId, now);
+  await addPoints(db, drop.uploader_id, drop.class_id, POINTS.duplicated, 'duplicate', drop.id, proposalId, now);
+  await db.query(
+    `insert into confirmations (homework_id, user_id, version, created_at)
+     select $1, c.user_id, $2, c.created_at from confirmations c where c.homework_id = $3 and c.user_id <> $4
+     on conflict (homework_id, user_id) do nothing`,
+    [keep.id, keep.version, drop.id, keep.uploader_id],
+  );
+  await evaluateConfirm(db, await loadHw(db, keep.id), now);
+}
+
 async function applyProposal(db: Db, p: ProposalRow, h: HwRow, via: 'adopt' | 'vote', now: Date) {
   if (p.kind === 'correct' || p.kind === 'update') {
     const changes = ChangesIn.parse(p.changes);
@@ -557,11 +576,13 @@ async function applyProposal(db: Db, p: ProposalRow, h: HwRow, via: 'adopt' | 'v
        and ((homework_id = $1 and target_id = $2) or (homework_id = $2 and target_id = $1))`,
       [h.id, other.id, now],
     );
+    await mergePoints(db, keep, drop, p.id, now);
     await db.query('update proposals set points_at = $2 where id = $1', [p.id, now]);
     return;
   }
-  // 不是重复：拆回来，恢复成单独的一条
+  // 不是重复：拆回来，恢复成单独的一条；合并时扣的分退回去
   await db.query(`update homework set status = 'active', merged_into = null, updated_at = $2 where id = $1`, [h.id, now]);
+  await db.query(`delete from points where homework_id = $1 and reason in ('merged_away', 'duplicate')`, [h.id]);
   await closeProposal(db, p.id, 'applied', now, { via });
   await db.query('update proposals set points_at = $2 where id = $1', [p.id, now]);
 }

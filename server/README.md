@@ -96,7 +96,7 @@ test/                     测试，按业务场景写的，可以当规则说明
 | GET | `/files/:key` | 所有人 | 下载附件。图片和 PDF 直接打开，Word 下载 |
 | POST / DELETE | `/homework/:id/confirm` | 班里的人 | 确认 / 撤回确认 |
 | PUT / DELETE | `/homework/:id/reactions/thumbs` 或 `cry` | 班里的人 | 赞 / 下雨 |
-| POST | `/homework/:id/proposals` | 班里的人 | 「有问题」：`{ kind, changes?, targetId?, reason }` |
+| POST | `/homework/:id/proposals` | 班里的人 | 「有问题」：`{ kind, changes?, targetId?, reason }`。重复合并时留下先传的；后传的确认分收回、再扣 3 分，确认转给先传的；拆回来全部退还 |
 | POST | `/proposals/:id/vote` | 班里的人 | 投票 `{ agree }` |
 | POST | `/proposals/:id/adopt` | 上传者 | 采纳 |
 | POST | `/proposals/:id/withdraw` | 提议人 | 撤回 |
