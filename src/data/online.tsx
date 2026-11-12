@@ -63,16 +63,45 @@ export function useOnline() {
 
   // ---------- 登录 ----------
 
-  const requestCode = useCallback((email: string) => api('/auth/code', { method: 'POST', body: { email } }), []);
+  // 注册、找回密码前先发验证码；平时登录只要邮箱 + 密码
+  const requestCode = useCallback(
+    (email: string, purpose: 'register' | 'reset') => api('/auth/code', { method: 'POST', body: { email, purpose } }),
+    [],
+  );
 
-  const login = useCallback(
-    async (email: string, code: string) => {
-      const res = await api<{ token: string; created: boolean; user: UserRef }>('/auth/verify', { method: 'POST', body: { email, code } });
+  const signedIn = useCallback(
+    (res: { token: string; user: UserRef }) => {
       setAccount({ token: res.token, user: res.user });
       setProfile({ nickname: res.user.nickname });
-      return res;
     },
     [setAccount, setProfile],
+  );
+
+  const login = useCallback(
+    async (email: string, password: string) => {
+      const res = await api<{ token: string; user: UserRef }>('/auth/login', { method: 'POST', body: { email, password } });
+      signedIn(res);
+      return res;
+    },
+    [signedIn],
+  );
+
+  const register = useCallback(
+    async (email: string, code: string, password: string) => {
+      const res = await api<{ token: string; created: boolean; user: UserRef }>('/auth/register', { method: 'POST', body: { email, code, password } });
+      signedIn(res);
+      return res;
+    },
+    [signedIn],
+  );
+
+  const resetPassword = useCallback(
+    async (email: string, code: string, password: string) => {
+      const res = await api<{ token: string; user: UserRef }>('/auth/reset', { method: 'POST', body: { email, code, password } });
+      signedIn(res);
+      return res;
+    },
+    [signedIn],
   );
 
   const logout = useCallback(async () => {
@@ -262,7 +291,7 @@ export function useOnline() {
     [account, addJoinedCourse, sync, timetable.term, setTimetable],
   );
 
-  return { loggedIn: !!account, account, link, sync, refresh, requestCode, login, logout, rename, me, upload, edit, remove, react, detail, propose, vote, adopt, withdraw, voteDuplicate, messages, send, classBoard, globalBoard, setAvatar, leave, search, join };
+  return { loggedIn: !!account, account, link, sync, refresh, requestCode, login, register, resetPassword, logout, rename, me, upload, edit, remove, react, detail, propose, vote, adopt, withdraw, voteDuplicate, messages, send, classBoard, globalBoard, setAvatar, leave, search, join };
 }
 
 export { ApiError, localHomeworkId };
