@@ -6,11 +6,11 @@
 
 | 东西 | 在仓库哪里 | 部署后在哪 |
 |---|---|---|
-| 后端（Node + PostgreSQL） | `feat/backend` 分支的 `server/` | `https://ddl.ninebug.xyz/v1/...` |
-| 产品网站（纯静态页面） | `feat/app-online` 分支的 `site/` | `https://ddl.ninebug.xyz` |
+| 后端（Node + PostgreSQL） | `feat/backend` 分支的 `server/` | `https://ninebug.xyz/v1/...` |
+| 产品网站（纯静态页面） | `feat/app-online` 分支的 `site/` | `https://ninebug.xyz` |
 | 发验证码、邮件提醒 | Resend | 发件人 `DDL斩 <noreply@mail.ninebug.xyz>` |
 
-一台服务器、一个子域名。Caddy 负责 https 证书（自动申请、自动续期），按路径分流：`/v1/*` 转给后端的 8787 端口，其余的当静态网站。
+一台服务器。主域名 `ninebug.xyz` 放产品网站和后端（`www.ninebug.xyz` 自动跳到主域名），副域名 `mail.ninebug.xyz` 只用来发信，不指向服务器。Caddy 负责 https 证书（自动申请、自动续期），按路径分流：`/v1/*` 转给后端的 8787 端口，其余的当静态网站。
 
 > 现在后端和 app 还在两个分支上，没合进 main。下面先按两个分支部署；合进 main 以后，把两处 `git clone -b ...` 换成同一个 main 就行（见第 11 节）。
 
@@ -30,9 +30,12 @@
 
 | 主机记录 | 类型 | 值 | 用途 |
 |---|---|---|---|
-| `ddl` | A | 服务器的 IP | 网站和后端 |
+| `@` | A | 服务器的 IP | 主域名：网站和后端 |
+| `www` | A | 服务器的 IP | 打 `www.` 的人也能进来，会跳到主域名 |
 | （Resend 给的几条） | MX / TXT | 照抄 Resend 后台显示的 | 让 Resend 能用 `mail.ninebug.xyz` 发信（SPF、DKIM） |
 | `_dmarc.mail` | TXT | `v=DMARC1; p=none;` | 防别人冒充这个域名发信，也能提高进收件箱的概率 |
+
+`@` 就是主域名本身。如果 DNS 里原来已经有 `@` 或 `www` 的记录（比如域名商默认的停放页），先删掉再加。Resend 的记录都挂在 `mail` 下面，和主域名互不影响；主域名以后要是想收邮件，也不会和发信冲突。
 
 Resend 里：
 
@@ -40,7 +43,7 @@ Resend 里：
 2. 把它列出的记录加到 DNS 里，回来点 Verify，等到显示 Verified
 3. API Keys → 新建，权限 **Sending access**，域名限定 `mail.ninebug.xyz`。生成的 Key 自己保存好，第 5 步要用
 
-**确认**：在自己电脑上运行 `nslookup ddl.ninebug.xyz`，返回的是服务器 IP（新加的记录有时要等几分钟到半小时才生效）。
+**确认**：在自己电脑上运行 `nslookup ninebug.xyz` 和 `nslookup www.ninebug.xyz`，返回的都是服务器 IP（新加的记录有时要等几分钟到半小时才生效）。
 
 ---
 
@@ -181,7 +184,7 @@ journalctl -u ddl-killer -n 30       # 能看到「后端已启动」
 把 `/etc/caddy/Caddyfile` 整个换成：
 
 ```caddy
-ddl.ninebug.xyz {
+ninebug.xyz {
 	encode zstd gzip
 
 	# app 用的接口
@@ -201,6 +204,11 @@ ddl.ninebug.xyz {
 		Referrer-Policy strict-origin-when-cross-origin
 	}
 }
+
+# 打 www 的统一跳回主域名
+www.ninebug.xyz {
+	redir https://ninebug.xyz{uri} permanent
+}
 ```
 
 ```bash
@@ -212,8 +220,9 @@ Caddy 会自动向 Let's Encrypt 申请证书，第一次可能要等几十秒�
 
 **确认**：
 
-- 浏览器打开 `https://ddl.ninebug.xyz`，看到产品网站，地址栏有锁
-- `curl https://ddl.ninebug.xyz/v1/health` 返回 `{"ok":true}`
+- 浏览器打开 `https://ninebug.xyz`，看到产品网站，地址栏有锁
+- `curl https://ninebug.xyz/v1/health` 返回 `{"ok":true}`
+- 打开 `https://www.ninebug.xyz` 会跳到 `https://ninebug.xyz`
 - 出问题时看 `journalctl -u caddy -n 50`（最常见的原因：DNS 还没生效，或者 80/443 端口没开）
 
 ---
@@ -223,7 +232,7 @@ Caddy 会自动向 Let's Encrypt 申请证书，第一次可能要等几十秒�
 1. 用 QQ 邮箱、163 邮箱各发一次验证码（可以直接 `curl`）：
 
    ```bash
-   curl -X POST https://ddl.ninebug.xyz/v1/auth/code -H 'content-type: application/json' -d '{"email":"你的QQ号@qq.com"}'
+   curl -X POST https://ninebug.xyz/v1/auth/code -H 'content-type: application/json' -d '{"email":"你的QQ号@qq.com"}'
    ```
 
    看邮件多久到、有没有进垃圾箱。进了垃圾箱的话，先检查 Resend 后台里那几条 DNS 记录是不是都是绿的。
@@ -258,7 +267,7 @@ EOF
 
 1. GitHub 仓库 → Settings → Secrets and variables → Actions → **Variables**（不是 Secrets，因为这是公开地址）→ New repository variable：
    - Name：`EXPO_PUBLIC_API_URL`
-   - Value：`https://ddl.ninebug.xyz`
+   - Value：`https://ninebug.xyz`
 2. Actions → 打包安卓 APK → Run workflow，分支选 `feat/app-online`
 3. 打完在这次运行的页面底部下载 `ddl-killer-apk`
 
@@ -301,11 +310,11 @@ cd /opt/ddl-killer/web && sudo -u ddl git fetch --depth 1 origin main && sudo -u
 
 ## 12. 做完的检查单
 
-- [ ] `ddl.ninebug.xyz` 解析到服务器 IP
+- [ ] `ninebug.xyz` 和 `www.ninebug.xyz` 都解析到服务器 IP
 - [ ] Resend 里 `mail.ninebug.xyz` 显示 Verified，`_dmarc.mail` 加了
 - [ ] `systemctl status ddl-killer` 是 running，开机自启
-- [ ] `https://ddl.ninebug.xyz` 打开是产品网站，有锁
-- [ ] `https://ddl.ninebug.xyz/v1/health` 返回 `{"ok":true}`
+- [ ] `https://ninebug.xyz` 打开是产品网站，有锁
+- [ ] `https://ninebug.xyz/v1/health` 返回 `{"ok":true}`
 - [ ] QQ、163 邮箱都收到了验证码（记下有没有进垃圾箱）
 - [ ] `.env` 权限是 600，没有提交进仓库
 - [ ] 每天的数据库备份已经设好
