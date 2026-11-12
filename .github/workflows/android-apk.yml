@@ -15,6 +15,10 @@ jobs:
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    # app 连哪个后端：仓库 Settings → Secrets and variables → Actions → Variables 里的 EXPO_PUBLIC_API_URL
+    # （比如 https://ddl.ninebug.xyz）。没设置的话打出来的包连不上后端，只能用本机数据
+    env:
+      EXPO_PUBLIC_API_URL: ${{ vars.EXPO_PUBLIC_API_URL }}
     steps:
       - uses: actions/checkout@v7
 
