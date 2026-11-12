@@ -48,12 +48,14 @@ export default function Upload() {
   const toast = useToast();
   const online = useOnline();
   const [busy, setBusy] = useState(false);
-  // 带着 id 打开就是编辑自己上传过的作业，表单先填好原来的内容
-  const { id } = useLocalSearchParams<{ id?: string }>();
+  // 带着 id 打开就是编辑自己上传过的作业，表单先填好原来的内容；
+  // 从课程页点进来会带着 course，先选好那门课
+  const { id, course: fromCourse } = useLocalSearchParams<{ id?: string; course?: string }>();
   const editing = homework.find((h) => h.id === id && h.mine);
-  const courses = allCourses.filter((c) => c.id === editing?.courseId || (timetable.term ? c.source?.term === timetable.term : !c.source));
+  const preset = editing?.courseId ?? fromCourse;
+  const courses = allCourses.filter((c) => c.id === preset || (timetable.term ? c.source?.term === timetable.term : !c.source));
 
-  const [courseId, setCourseId] = useState<string | null>(editing?.courseId ?? null);
+  const [courseId, setCourseId] = useState<string | null>(preset && courses.some((c) => c.id === preset) ? preset : null);
   const [title, setTitle] = useState(editing?.title ?? '');
   const [date, setDate] = useState(() => {
     if (!editing) return dayFromToday(1);

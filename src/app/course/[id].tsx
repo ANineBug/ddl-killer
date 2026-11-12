@@ -110,6 +110,15 @@ export default function CourseDetail() {
             ))}
           </Card>
         )}
+        {/* 直接给这门课传作业，上传页里已经选好这门课 */}
+        <Press
+          onPress={() => router.push({ pathname: '/upload', params: { course: course.id } })}
+          style={[styles.upload, { borderColor: theme.accent, backgroundColor: theme.accentSoft }]}>
+          <Ionicons name="add" size={17} color={theme.accent} />
+          <Txt variant="sub" tone="accent">
+            上传这门课的作业
+          </Txt>
+        </Press>
       </Section>
 
       {course.serverClassId && (
@@ -159,4 +168,5 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 13, paddingHorizontal: 16 },
   actions: { flexDirection: 'row', gap: 10, marginTop: 28 },
   action: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, height: 44, borderRadius: 999, borderWidth: 1 },
+  upload: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, height: 44, borderRadius: 999, borderWidth: 1, marginTop: 12 },
 });
