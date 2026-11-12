@@ -269,7 +269,8 @@ export function useOnline() {
     [],
   );
   const classBoard = useCallback((classId: number) => api<{ board: BoardRow[] }>(`/classes/${classId}/board`).then((r) => r.board), []);
-  const globalBoard = useCallback(() => api<GlobalBoard>('/board'), []);
+  // 总分榜：总榜 / 月榜 / 周榜
+  const globalBoard = useCallback((period: 'all' | 'month' | 'week' = 'all') => api<GlobalBoard>(`/board?period=${period}`), []);
 
   // ---------- 头像 ----------
 
