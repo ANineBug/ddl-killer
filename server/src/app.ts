@@ -4,6 +4,7 @@ import { cors } from 'hono/cors';
 import { z } from 'zod';
 
 import { login, logout, register, requestCode, resetPassword, userFromToken } from './auth.ts';
+import { addAttachment, getFile, removeAttachment } from './attachments.ts';
 import { deleteAvatar, getAvatar, setAvatar, userRef } from './avatar.ts';
 import { classBoard, globalBoard } from './board.ts';
 import { adminDeleteMessage, listMessages, MessageIn, sendMessage } from './chat.ts';
@@ -27,7 +28,7 @@ import {
   voteProposal,
   withdrawProposal,
 } from './homework.ts';
-import { AVATAR_MAX_BYTES } from './rules.ts';
+import { ATTACHMENT_MAX_BYTES, AVATAR_MAX_BYTES } from './rules.ts';
 
 type Env = { Variables: { user: User | null; token: string | undefined } };
 
@@ -64,7 +65,7 @@ export function createApp(ctx: Ctx) {
 
   // 网页预览（localhost:8081）调用本机后端（localhost:8787）算跨域，要放行。
   // 凭证放在请求头里、不用 cookie，所以允许任意来源也不会被别的网站冒用登录状态
-  app.use(cors({ origin: '*', allowHeaders: ['Authorization', 'Content-Type'], allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'] }));
+  app.use(cors({ origin: '*', allowHeaders: ['Authorization', 'Content-Type', 'X-File-Name'], allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'] }));
 
   app.onError((err, c) => {
     if (err instanceof HttpError) {
@@ -180,6 +181,40 @@ export function createApp(ctx: Ctx) {
     return c.json(await editHomework(ctx, u, idParam(c), await body(c, ChangesIn)));
   });
   app.delete('/homework/:id', async (c) => c.json(await deleteHomework(ctx, need(c), idParam(c))));
+
+  // 附件：请求体直接是文件本身，文件名放在 X-File-Name 头里（URL 编码，请求头只能放英文）
+  app.post(
+    '/homework/:id/attachments',
+    bodyLimit({
+      maxSize: ATTACHMENT_MAX_BYTES,
+      onError: () => {
+        throw new HttpError(413, 'too_large', '附件每个最大 10MB');
+      },
+    }),
+    async (c) => {
+      const u = need(c);
+      let name = '';
+      try {
+        name = decodeURIComponent(c.req.header('x-file-name') ?? '');
+      } catch {
+        // 文件名编码坏了就不要了，按格式起一个
+      }
+      return c.json(await addAttachment(ctx, u, idParam(c), name, new Uint8Array(await c.req.arrayBuffer())), 201);
+    },
+  );
+  app.delete('/attachments/:key', async (c) => c.json(await removeAttachment(ctx, need(c), c.req.param('key'))));
+  app.get('/files/:key', async (c) => {
+    const f = await getFile(ctx, c.req.param('key'));
+    // 图片和 PDF 直接在浏览器里打开，Word 下载
+    const inline = f.mime.startsWith('image/') || f.mime === 'application/pdf';
+    return c.body(f.data as Uint8Array<ArrayBuffer>, 200, {
+      'Content-Type': f.mime,
+      'Content-Disposition': `${inline ? 'inline' : 'attachment'}; filename*=UTF-8''${encodeURIComponent(f.name)}`,
+      // 地址里的 key 每个文件都不一样，内容不会变
+      'Cache-Control': 'public, max-age=31536000, immutable',
+      'X-Content-Type-Options': 'nosniff',
+    });
+  });
   app.post('/homework/:id/confirm', async (c) => c.json(await confirmHomework(ctx, need(c), idParam(c))));
   app.delete('/homework/:id/confirm', async (c) => c.json(await unconfirmHomework(ctx, need(c), idParam(c))));
   app.put('/homework/:id/reactions/:kind', async (c) => {

@@ -91,6 +91,9 @@ test/                     测试，按业务场景写的，可以当规则说明
 | POST | `/classes/:id/homework` | 班里的人 | 上传 |
 | GET | `/homework/:id` | 所有人 | 详情，含改动记录、提议、合并进来的条目 |
 | PATCH / DELETE | `/homework/:id` | 上传者，没人确认前 | 直接改 / 删 |
+| POST | `/homework/:id/attachments` | 上传者，没人确认前 | 加附件：请求体就是文件，`X-File-Name` 头放 URL 编码的文件名。图片 / PDF / docx，每个最大 10MB，一条最多 6 个 |
+| DELETE | `/attachments/:key` | 上传者，没人确认前 | 删附件 |
+| GET | `/files/:key` | 所有人 | 下载附件。图片和 PDF 直接打开，Word 下载 |
 | POST / DELETE | `/homework/:id/confirm` | 班里的人 | 确认 / 撤回确认 |
 | PUT / DELETE | `/homework/:id/reactions/thumbs` 或 `cry` | 班里的人 | 赞 / 下雨 |
 | POST | `/homework/:id/proposals` | 班里的人 | 「有问题」：`{ kind, changes?, targetId?, reason }` |

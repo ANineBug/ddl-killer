@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+import { attachmentsFor } from './attachments.ts';
 import { userRef } from './avatar.ts';
 import { classWeights, requireMember } from './classes.ts';
 import { type Ctx, forbidden, HttpError, notFound, type User } from './context.ts';
@@ -146,6 +147,7 @@ async function views(db: Db, rows: HwRow[], userId: number | null, now: Date) {
     `select merged_into, count(*)::int n from homework where status = 'merged' and merged_into = any($1::int[]) group by merged_into`,
     [ids],
   );
+  const files = await attachmentsFor(db, ids);
   const mine = userId
     ? {
         conf: await db.query<{ homework_id: number; version: number }>(
@@ -185,6 +187,7 @@ async function views(db: Db, rows: HwRow[], userId: number | null, now: Date) {
       source: h.source,
       optional: h.optional,
       groupWork: h.group_work,
+      attachments: files.get(h.id) ?? [],
       state: stateOf(h, changes.length > 0, now),
       postponed: h.postponed,
       mergedInto: h.merged_into,

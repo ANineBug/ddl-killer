@@ -71,6 +71,8 @@ export function passwordProblem(pw: string): string | null {
   return null;
 }
 export const AVATAR_MAX_BYTES = 2 * 1024 * 1024; // 头像最大 2MB
+export const ATTACHMENT_MAX_BYTES = 10 * 1024 * 1024; // 作业附件每个最大 10MB
+export const ATTACHMENTS_PER_HOMEWORK = 6; // 一条作业最多 6 个附件
 
 // ---------- 邮箱 ----------
 
