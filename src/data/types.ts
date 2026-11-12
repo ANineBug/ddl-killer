@@ -1,3 +1,5 @@
+import type { RemoteAttachment } from '@/api/types';
+
 export type Weekday = 1 | 2 | 3 | 4 | 5 | 6 | 7;
 export type WeekRange = { from: number; to: number; rule: WeekRule };
 
@@ -90,6 +92,7 @@ export type RemoteInfo = {
   source: string;
   optional: boolean;
   groupWork: boolean;
+  attachments: RemoteAttachment[];
 };
 
 export type Profile = {

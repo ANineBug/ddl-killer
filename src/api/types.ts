@@ -6,6 +6,9 @@ export type Tier = 'newbie' | 'member' | 'helper' | 'trusted';
 
 export type RemoteState = 'pending' | 'confirmed' | 'disputed' | 'cancelled' | 'closed' | 'merged';
 
+// 作业附件：图片、PDF、Word。url 是 /v1/files/… 这样的相对地址
+export type RemoteAttachment = { id: string; name: string; mime: string; size: number; url: string };
+
 export type RemoteHomework = {
   id: number;
   classId: number;
@@ -18,6 +21,7 @@ export type RemoteHomework = {
   source: string;
   optional: boolean;
   groupWork: boolean;
+  attachments: RemoteAttachment[];
   state: RemoteState;
   postponed: boolean;
   mergedInto: number | null;

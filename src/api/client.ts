@@ -24,11 +24,11 @@ export function setToken(t: string | null) {
   token = t;
 }
 
-type Options = { method?: string; body?: unknown; raw?: BodyInit; contentType?: string };
+type Options = { method?: string; body?: unknown; raw?: BodyInit; contentType?: string; headers?: Record<string, string> };
 
 export async function api<T = any>(path: string, opts: Options = {}): Promise<T> {
   if (!API_URL) throw new ApiError(0, 'offline', '还没有配置服务器地址');
-  const headers: Record<string, string> = {};
+  const headers: Record<string, string> = { ...opts.headers };
   if (token) headers.Authorization = `Bearer ${token}`;
   let body: BodyInit | undefined = opts.raw;
   if (opts.body !== undefined) {

@@ -44,6 +44,7 @@ export function fromRemote(r: RemoteHomework, courseId: string, previous?: Homew
       source: r.source,
       optional: r.optional,
       groupWork: r.groupWork,
+      attachments: r.attachments ?? [],
     },
   };
 }

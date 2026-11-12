@@ -2,6 +2,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
+import { AttachmentEditor, type PendingFile } from '@/components/Attachments';
 import { CalendarPicker } from '@/components/CalendarPicker';
 import { TimePicker } from '@/components/TimePicker';
 import { useToast } from '@/components/Toast';
@@ -73,6 +74,10 @@ export default function Upload() {
   const [dueKind, setDueKind] = useState<'at' | 'next_class' | 'tbd'>(editing?.remote?.dueKind ?? 'at');
   const [optional, setOptional] = useState(editing?.remote?.optional ?? false);
   const [groupWork, setGroupWork] = useState(editing?.remote?.groupWork ?? false);
+  // 附件：刚选的还在手机上，发布时一个一个传；编辑时点掉的旧附件，保存时才真正删
+  const [files, setFiles] = useState<PendingFile[]>([]);
+  const [removed, setRemoved] = useState<string[]>([]);
+  const kept = (editing?.remote?.attachments ?? []).filter((a) => !removed.includes(a.id));
   const course = courseId ? courseById(courseId) : undefined;
   // 这门课已经接上服务器了：发布到班里，要先登录
   const shared = !!course?.serverClassId;
@@ -100,10 +105,25 @@ export default function Upload() {
       setBusy(true);
       try {
         const payload = { title: data.title, detail: data.detail, dueKind, due: dueKind === 'tbd' ? null : due, submit, source, optional, groupWork };
-        if (editing?.remote) await online.edit(editing, { ...payload, due: payload.due ? payload.due.toISOString() : null });
-        else await online.upload(course!.serverClassId!, payload);
+        let homeworkId: number;
+        if (editing?.remote) {
+          await online.edit(editing, { ...payload, due: payload.due ? payload.due.toISOString() : null });
+          homeworkId = editing.remote.id;
+        } else {
+          homeworkId = (await online.upload(course!.serverClassId!, payload)).id;
+        }
+        // 作业已经存上了；附件传失败的只提示，不把作业也算失败
+        const failed: string[] = [];
+        if (files.length || removed.length) {
+          for (const key of removed) await online.detach(key).catch(() => failed.push('删除旧附件'));
+          for (const f of files) {
+            await online.attach(homeworkId, f).catch((e) => failed.push(`${f.name}（${errorText(e)}）`));
+          }
+          await online.reload(homeworkId).catch(() => {});
+        }
         closeModal();
-        toast(editing ? '已保存修改' : '已发布，班里的同学都能看到了');
+        if (failed.length) toast(`作业${editing ? '已保存' : '已发布'}，但这些没传上：${failed.join('、')}`);
+        else toast(editing ? '已保存修改' : '已发布，班里的同学都能看到了');
       } catch (e) {
         toast(errorText(e));
       } finally {
@@ -255,6 +275,17 @@ export default function Upload() {
       )}
 
       <Field label="要求（可选）" placeholder="页码、题号、格式要求……" value={detail} onChangeText={setDetail} multiline />
+
+      {/* 附件要传到班里，只有连上教学班的课才有 */}
+      {shared && (
+        <AttachmentEditor
+          existing={kept}
+          onRemoveExisting={(key) => setRemoved((r) => [...r, key])}
+          files={files}
+          onChange={setFiles}
+          onError={toast}
+        />
+      )}
 
     </ModalScreen>
   );

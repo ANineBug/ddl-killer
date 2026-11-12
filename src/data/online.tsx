@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef } from 'react';
 import { AppState } from 'react-native';
 
 import { api, ApiError } from '@/api/client';
-import type { BoardRow, ChatMessage, GlobalBoard, Me, ProposalKind, RemoteClass, RemoteDetail, RemoteHomework, UserRef } from '@/api/types';
+import type { BoardRow, ChatMessage, GlobalBoard, Me, ProposalKind, RemoteAttachment, RemoteClass, RemoteDetail, RemoteHomework, UserRef } from '@/api/types';
 
 import { courseForServer, courseFromClass, fromRemote, localHomeworkId } from './remote';
 import { useStore } from './store';
@@ -177,6 +177,24 @@ export function useOnline() {
   // ---------- 详情与提议 ----------
 
   // 详情：带改动记录、提议、合并进来的条目。顺便把列表里这条也更新成最新的
+  // ---------- 附件 ----------
+
+  // 一次传一个：请求体就是文件本身，文件名放在请求头里
+  const attach = useCallback(async (homeworkId: number, f: { uri: string; name: string; mime?: string }) => {
+    const blob = await (await fetch(f.uri)).blob();
+    return api<RemoteAttachment>(`/homework/${homeworkId}/attachments`, {
+      method: 'POST',
+      raw: blob,
+      contentType: f.mime || 'application/octet-stream',
+      headers: { 'X-File-Name': encodeURIComponent(f.name) },
+    });
+  }, []);
+
+  const detach = useCallback((key: string) => api(`/attachments/${key}`, { method: 'DELETE' }), []);
+
+  // 加、删完附件，把这条作业重新拉一遍，手机上的附件列表就对上了
+  const reload = useCallback(async (homeworkId: number) => apply(await api<RemoteHomework>(`/homework/${homeworkId}`)), [apply]);
+
   const detail = useCallback(
     async (h: Homework) => {
       const d = await api<RemoteDetail>(`/homework/${h.remote!.id}`);
@@ -291,7 +309,7 @@ export function useOnline() {
     [account, addJoinedCourse, sync, timetable.term, setTimetable],
   );
 
-  return { loggedIn: !!account, account, link, sync, refresh, requestCode, login, register, resetPassword, logout, rename, me, upload, edit, remove, react, detail, propose, vote, adopt, withdraw, voteDuplicate, messages, send, classBoard, globalBoard, setAvatar, leave, search, join };
+  return { loggedIn: !!account, account, link, sync, refresh, requestCode, login, register, resetPassword, logout, rename, me, upload, edit, remove, attach, detach, reload, react, detail, propose, vote, adopt, withdraw, voteDuplicate, messages, send, classBoard, globalBoard, setAvatar, leave, search, join };
 }
 
 export { ApiError, localHomeworkId };

@@ -7,6 +7,7 @@ import type { RemoteDetail } from '@/api/types';
 import { haptic } from '@/components/haptic';
 import { HomeworkCommunity } from '@/components/HomeworkCommunity';
 import { ReactionIcon } from '@/components/ReactionIcon';
+import { AttachmentList } from '@/components/Attachments';
 import { ReminderCard } from '@/components/ReminderCard';
 import { useToast } from '@/components/Toast';
 import { Card, closeModal, ModalScreen, Press, PrimaryButton, Txt } from '@/components/ui';
@@ -179,6 +180,15 @@ export default function HomeworkDetail() {
           </Txt>
           <Txt style={{ lineHeight: 23 }}>{item.detail}</Txt>
         </Card>
+      ) : null}
+
+      {item.remote?.attachments.length ? (
+        <View style={{ marginTop: 14 }}>
+          <Txt variant="caption" tone="sub" style={{ marginBottom: 8, marginLeft: 4 }}>
+            附件 · {item.remote.attachments.length}
+          </Txt>
+          <AttachmentList items={item.remote.attachments} />
+        </View>
       ) : null}
 
       <View style={styles.reactions}>
