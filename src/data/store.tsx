@@ -228,7 +228,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setHomework((list) => (list.some((x) => x.id === h.id) ? list : [h, ...list]));
   }, []);
 
-  // 演示版匹配：时间和地点完全一样就算同一个教学班，不处理写法差异
+  // 手动加课时的本机匹配：时间和地点完全一样就算同一个教学班，不处理写法差异
   const addCourse = useCallback(
     (c: NewCourse) => {
       const s = c.sessions[0];

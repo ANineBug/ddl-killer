@@ -35,7 +35,7 @@ export type Course = {
   manual?: boolean;
   // 课表色块用第几种颜色
   hue: number;
-  // 已加入这个教学班的同学数（演示数据）
+  // 已加入这个教学班的同学数（服务器给的；只在手机上的课是 0 或 1）
   members: number;
 };
 
@@ -69,7 +69,7 @@ export type Homework = {
   dupVote?: boolean;
   // 「与我无关」：比如选了别的题目的小组，这条不再出现在待完成里，也不提醒。只存在手机上
   ignored?: boolean;
-  // 从服务器同步来的作业才有：服务器上的编号、状态等。没有就是只存在这台手机上的（演示数据）
+  // 从服务器同步来的作业才有：服务器上的编号、状态等。没有就是只存在这台手机上的
   remote?: RemoteInfo;
 };
 

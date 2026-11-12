@@ -5,7 +5,7 @@ import type { RemoteClass, RemoteHomework } from '@/api/types';
 import { TBD_DUE } from './format';
 import type { Course, Homework, Session, SubmitMethod, Weekday, WeekRange } from './types';
 
-// 服务器作业在手机上的编号：加个 s 前缀，和本地演示作业的编号分开
+// 服务器作业在手机上的编号：加个 s 前缀，和只存在手机上的作业的编号分开
 export const localHomeworkId = (serverId: number) => `s${serverId}`;
 
 // 服务器作业 → 手机上的作业。"我完成了没有"、自己设的提醒只存在手机上，从旧的那份里接着用

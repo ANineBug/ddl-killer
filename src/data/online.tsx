@@ -255,7 +255,7 @@ export function useOnline() {
       if (account) await api(`/classes/${c.id}/join`, { method: 'POST' });
       const course = { ...courseFromClass(c, `j${c.id}`, 0), manual: true };
       addJoinedCourse(course);
-      // 课表一次只显示一个学期；还没选过学期（一直在看演示课表）时，切到这个班的学期，刚加的课才看得到
+      // 课表一次只显示一个学期；还没选过学期（还没导入过课表）时，切到这个班的学期，刚加的课才看得到
       if (!timetable.term) setTimetable({ term: c.term });
       await sync([course]);
     },
