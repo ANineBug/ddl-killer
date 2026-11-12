@@ -318,6 +318,10 @@ function Rules({ tier }: { tier?: Tier }) {
       {rule('+5', '你提的纠错被采纳')}
       {rule('+3', '你提的更新被采纳')}
       {rule('−5', '你传的作业被别人纠错', true)}
+      {rule('−3', '你传的作业和别人先传的重复，被合并掉', true)}
+      <Txt variant="caption" tone="faint" style={{ marginLeft: 46, marginTop: 2, lineHeight: 18 }}>
+        重复的两条留下先传的。后传的那条被确认拿到的分也收回，它的确认转给先传的那条
+      </Txt>
       <Txt variant="caption" tone="sub" style={{ marginTop: 14, marginBottom: 8 }}>
         班级榜的分数决定你在这个班的档位，档位越高投票越有分量
       </Txt>
