@@ -152,3 +152,20 @@ test('退出登录后凭证失效', async () => {
   assert.equal((await s.call('GET', '/me', t)).status, 401);
   await s.close();
 });
+
+test('发码、输错密码的记录留一天就清掉', async () => {
+  const s = await setup();
+  await s.login('10@qq.com');
+  await s.call('POST', '/auth/login', undefined, { email: '10@qq.com', password: 'wrong1234' });
+  const { purgeAuthLogs } = await import('../src/auth.ts');
+  const count = async () => {
+    const r = await s.db.one<{ c: number; l: number }>('select (select count(*)::int from code_requests) c, (select count(*)::int from login_failures) l');
+    return [r!.c, r!.l];
+  };
+  await purgeAuthLogs(s.ctx);
+  assert.deepEqual(await count(), [1, 1]);
+  s.tick(86_400_000 + 1000);
+  await purgeAuthLogs(s.ctx);
+  assert.deepEqual(await count(), [0, 0]);
+  await s.close();
+});

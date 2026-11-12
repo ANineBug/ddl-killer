@@ -228,6 +228,17 @@ export async function resetPassword(ctx: Ctx, rawEmail: string, code: string, pa
   });
 }
 
+// ---------- 清理 ----------
+
+// 发码记录、密码输错记录里有邮箱和 IP，只是用来限频率（最多看最近一小时），留一天就够了，过期的验证码也删掉。
+// 后台每分钟跑一次，不让这些记录越攒越多
+export async function purgeAuthLogs(ctx: Ctx) {
+  const dayAgo = new Date(ctx.now().getTime() - 86_400_000);
+  await ctx.db.query('delete from code_requests where at < $1', [dayAgo]);
+  await ctx.db.query('delete from login_failures where at < $1', [dayAgo]);
+  await ctx.db.query('delete from email_codes where expires_at < $1', [dayAgo]);
+}
+
 // ---------- 凭证 ----------
 
 export async function userFromToken(ctx: Ctx, token: string | undefined): Promise<User | null> {

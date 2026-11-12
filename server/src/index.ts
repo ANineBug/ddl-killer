@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url';
 import { serve } from '@hono/node-server';
 
 import { createApp } from './app.ts';
+import { purgeAuthLogs } from './auth.ts';
 import type { Ctx } from './context.ts';
 import { type Db, migrate, pglite, postgres } from './db.ts';
 import { maybeSendDigests } from './digest.ts';
@@ -39,7 +40,9 @@ serve({ fetch: app.fetch, port }, () => console.log(`后端已启动：http://lo
 
 // 每分钟把过了截止时间的提议结束掉
 // 每天早上 7 点发邮件提醒
+// 清掉一天以前的发码、输错密码记录（里面有邮箱和 IP）
 setInterval(() => {
   sweep(ctx).catch((e) => console.error('sweep', e));
   maybeSendDigests(ctx).catch((e) => console.error('digest', e));
+  purgeAuthLogs(ctx).catch((e) => console.error('purge', e));
 }, 60_000);
