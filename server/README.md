@@ -23,7 +23,7 @@ npm run typecheck  # 类型检查
 ```
 migrations/001_init.sql   所有表。改表结构就新加 002_xxx.sql，不要改已经上线的文件
 src/rules.ts              规则里的数字和纯计算：档位、门槛、分值、频率限制、邮箱白名单、课名教室规整
-src/auth.ts               邮箱验证码登录
+src/auth.ts               账号：验证码注册、密码登录、验证码找回密码
 src/classes.ts            导入课表、认班、搜班、加入退出、每个人在班里的权重
 src/homework.ts           作业、确认、表情、提议（纠错/更新/重复/不是重复）、加减分
 src/chat.ts               班级聊天
@@ -74,8 +74,10 @@ test/                     测试，按业务场景写的，可以当规则说明
 
 | 方法 | 地址 | 谁能用 | 做什么 |
 |---|---|---|---|
-| POST | `/auth/code` | 所有人 | 发验证码 `{ email }` |
-| POST | `/auth/verify` | 所有人 | 填验证码 `{ email, code }`，返回凭证；第一次自动注册 |
+| POST | `/auth/code` | 所有人 | 发验证码 `{ email, purpose: 'register' \| 'reset' }`；注册时邮箱已有密码回 409，找回时邮箱没注册回 404 |
+| POST | `/auth/register` | 所有人 | 注册 `{ email, code, password }`，返回凭证。密码 8–64 位，字母数字都要有 |
+| POST | `/auth/login` | 所有人 | 登录 `{ email, password }`，返回凭证。同一邮箱 15 分钟错 10 次、同一 IP 错 30 次先锁住 |
+| POST | `/auth/reset` | 所有人 | 找回密码 `{ email, code, password }`，返回新凭证；别的设备全部登出 |
 | POST | `/auth/logout` | 登录 | 退出 |
 | GET / PATCH | `/me` | 登录 | 我的信息和加入的班 / 改昵称 |
 | POST | `/me/import` | 登录 | 导入教务课表 `{ term, courses }` |

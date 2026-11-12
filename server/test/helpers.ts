@@ -31,18 +31,23 @@ export async function setup() {
   }
 
   let ipCounter = 0;
-  // 注册并登录一个账号，返回凭证。每个账号用不同的 IP，免得撞上发码频率限制
-  async function login(email: string) {
+  // 发一个验证码，返回邮件里的码。每次用不同的 IP，免得撞上发码频率限制
+  async function sendCode(email: string, purpose: 'register' | 'reset' = 'register') {
     ipCounter++;
     const res = await app.request('/v1/auth/code', {
       method: 'POST',
       headers: { 'content-type': 'application/json', 'x-forwarded-for': `10.1.${ipCounter >> 8}.${ipCounter & 255}` },
-      body: JSON.stringify({ email }),
+      body: JSON.stringify({ email, purpose }),
     });
     if (res.status !== 200) throw new Error(`code ${res.status} ${await res.text()}`);
-    const code = /验证码是 (\d{6})/.exec(mails.at(-1)!.text)![1];
-    const v = await call('POST', '/auth/verify', undefined, { email, code });
-    if (v.status !== 200) throw new Error(`verify ${v.status}`);
+    return /验证码是 (\d{6})/.exec(mails.at(-1)!.text)![1];
+  }
+
+  // 注册一个账号（密码统一是 PASSWORD），返回凭证
+  async function login(email: string) {
+    const code = await sendCode(email);
+    const v = await call('POST', '/auth/register', undefined, { email, code, password: PASSWORD });
+    if (v.status !== 200) throw new Error(`register ${v.status} ${JSON.stringify(v.data)}`);
     return v.data.token as string;
   }
 
@@ -52,6 +57,7 @@ export async function setup() {
     db,
     mails,
     call,
+    sendCode,
     login,
     tick: (ms: number) => void (t += ms),
     close: () => db.close(),
@@ -59,6 +65,7 @@ export async function setup() {
 }
 
 export const TERM = '2026-2027学年第1学期';
+export const PASSWORD = 'abc12345';
 
 // 一份典型的课表：概率论周一 6-7 节、周五 5-6 节；大学物理周三 10-12 节
 export const probability = {

@@ -59,6 +59,17 @@ export const CODE_RESEND_MS = 60_000; // 验证码 60 秒内不能重发
 export const CODE_TTL_MS = 10 * 60_000; // 验证码 10 分钟有效
 export const CODE_MAX_ATTEMPTS = 5; // 输错 5 次作废
 export const CODE_IP_PER_HOUR = 10; // 同一个 IP 每小时最多发 10 次码
+export const LOGIN_FAIL_WINDOW_MS = 15 * 60_000; // 密码输错按最近 15 分钟算
+export const LOGIN_FAIL_PER_EMAIL = 10; // 同一个邮箱 15 分钟内错 10 次就先锁住
+export const LOGIN_FAIL_PER_IP = 30; // 同一个 IP 15 分钟内错 30 次（换着邮箱猜）也锁住
+
+// 密码：8 到 64 位，字母和数字都要有。只挡最弱的那种（纯数字生日、纯字母单词）
+export function passwordProblem(pw: string): string | null {
+  if (pw.length < 8) return '密码至少 8 位';
+  if (pw.length > 64) return '密码最多 64 位';
+  if (!/[A-Za-z]/.test(pw) || !/\d/.test(pw)) return '密码要同时有字母和数字';
+  return null;
+}
 export const AVATAR_MAX_BYTES = 2 * 1024 * 1024; // 头像最大 2MB
 
 // ---------- 邮箱 ----------

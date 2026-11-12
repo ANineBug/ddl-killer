@@ -3,7 +3,7 @@ import { bodyLimit } from 'hono/body-limit';
 import { cors } from 'hono/cors';
 import { z } from 'zod';
 
-import { logout, requestCode, userFromToken, verifyCode } from './auth.ts';
+import { login, logout, register, requestCode, resetPassword, userFromToken } from './auth.ts';
 import { deleteAvatar, getAvatar, setAvatar, userRef } from './avatar.ts';
 import { classBoard, globalBoard } from './board.ts';
 import { adminDeleteMessage, listMessages, MessageIn, sendMessage } from './chat.ts';
@@ -83,15 +83,28 @@ export function createApp(ctx: Ctx) {
 
   app.get('/health', (c) => c.json({ ok: true }));
 
-  // ---------- 登录 ----------
+  // ---------- 账号 ----------
+  // 注册、找回密码要先发验证码；登录只要邮箱 + 密码
   app.post('/auth/code', async (c) => {
-    const { email } = await body(c, z.object({ email: z.string() }));
-    return c.json(await requestCode(ctx, email, clientIp(c)));
+    const { email, purpose } = await body(c, z.object({ email: z.string(), purpose: z.enum(['register', 'reset']) }));
+    return c.json(await requestCode(ctx, email, purpose, clientIp(c)));
   });
-  app.post('/auth/verify', async (c) => {
-    const { email, code } = await body(c, z.object({ email: z.string(), code: z.string() }));
-    const r = await verifyCode(ctx, email, code);
+  const credentials = z.object({ email: z.string(), password: z.string().max(200) });
+  const withCode = credentials.extend({ code: z.string() });
+  app.post('/auth/register', async (c) => {
+    const { email, code, password } = await body(c, withCode);
+    const r = await register(ctx, email, code, password);
     return c.json({ token: r.token, created: r.created, user: userRef(r.user.id, r.user.nickname, r.user.avatar_version) });
+  });
+  app.post('/auth/login', async (c) => {
+    const { email, password } = await body(c, credentials);
+    const r = await login(ctx, email, password, clientIp(c));
+    return c.json({ token: r.token, user: userRef(r.user.id, r.user.nickname, r.user.avatar_version) });
+  });
+  app.post('/auth/reset', async (c) => {
+    const { email, code, password } = await body(c, withCode);
+    const r = await resetPassword(ctx, email, code, password);
+    return c.json({ token: r.token, user: userRef(r.user.id, r.user.nickname, r.user.avatar_version) });
   });
   app.post('/auth/logout', async (c) => {
     const token = c.get('token');
