@@ -71,6 +71,12 @@ export type Homework = {
   dupVote?: boolean;
   // 「与我无关」：比如选了别的题目的小组，这条不再出现在待完成里，也不提醒。只存在手机上
   ignored?: boolean;
+  // 什么时候打的勾。只存在手机上，「完成记录」里算按时率、每天完成几条用
+  doneAt?: Date;
+  // 归档：true 自己归档了；false 从归档里移回来了，不再自动归档；没设置就按规则自动（截止过了一周）
+  archived?: boolean;
+  // 课被删掉以后，归档里的作业还要显示是哪门课，删课时把课名记下来
+  courseName?: string;
   // 从服务器同步来的作业才有：服务器上的编号、状态等。没有就是只存在这台手机上的
   remote?: RemoteInfo;
 };

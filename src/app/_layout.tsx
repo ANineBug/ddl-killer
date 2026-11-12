@@ -49,6 +49,7 @@ export default function RootLayout() {
                   <Stack.Screen name="board" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
                   <Stack.Screen name="reminder-notice" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
                   <Stack.Screen name="class-times" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
+                  <Stack.Screen name="archive" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
                 </Stack>
               </View>
             </NavigationThemeProvider>

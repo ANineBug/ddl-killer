@@ -12,6 +12,7 @@ import { TabScreen } from '@/components/TabScreen';
 import { TabScrollView } from '@/components/TabScroll';
 import { useToast } from '@/components/Toast';
 import { Card, Chip, Press, Section, Txt } from '@/components/ui';
+import { isArchived, isFinished } from '@/data/archive';
 import { dayDiff, formatDue, formatToday, isTbd, isUrgent } from '@/data/format';
 import { errorText, useOnline } from '@/data/online';
 import { useStore } from '@/data/store';
@@ -28,7 +29,7 @@ const groups = [
 
 export default function HomeworkScreen() {
   const { theme } = useTheme();
-  const { homework, courses } = useStore();
+  const { homework, courses, setArchived } = useStore();
   const insets = useSafeAreaInsets();
   const [showDone, setShowDone] = useState(false);
   const online = useOnline();
@@ -48,9 +49,18 @@ export default function HomeworkScreen() {
     () => homework.filter((h) => !h.done && !h.ignored).sort((a, b) => a.due.getTime() - b.due.getTime()),
     [homework],
   );
-  // 完成了的和「与我无关」的都收在下面
-  const done = homework.filter((h) => h.done || h.ignored);
-  const ignoredCount = homework.filter((h) => h.ignored && !h.done).length;
+  // 完成了的和「与我无关」的都收在下面；归档了的（自己归档的，或截止过了一周的）去「我的 → 完成记录」
+  const now = new Date();
+  const done = homework.filter((h) => isFinished(h) && !isArchived(h, now));
+  const ignoredCount = done.filter((h) => h.ignored && !h.done).length;
+
+  function archiveAll() {
+    const before = Object.fromEntries(done.map((h) => [h.id, h.archived]));
+    haptic.success();
+    setArchived(Object.fromEntries(done.map((h) => [h.id, true])));
+    setShowDone(false);
+    toast(`已归档 ${done.length} 项，在「我的 → 完成记录」里`, { label: '撤销', onPress: () => setArchived(before) });
+  }
   const next = pending[0];
 
   // 可能重复的几条叠成一叠：最早传的那条在最上面，其余的收在它后面，列表里不再单独出现
@@ -150,7 +160,15 @@ export default function HomeworkScreen() {
 
         {done.length > 0 && (
           <View style={{ marginTop: 22 }}>
-            <DoneToggle count={done.length} label={ignoredCount ? '已完成或与我无关' : '已完成'} open={showDone} onPress={() => setShowDone((v) => !v)} />
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <DoneToggle count={done.length} label={ignoredCount ? '已完成或与我无关' : '已完成'} open={showDone} onPress={() => setShowDone((v) => !v)} />
+              <Press onPress={archiveAll} hitSlop={8} style={[styles.archiveAll, { borderColor: theme.line }]}>
+                <Ionicons name="archive-outline" size={13} color={theme.sub} />
+                <Txt variant="caption" tone="sub">
+                  全部归档
+                </Txt>
+              </Press>
+            </View>
             {showDone && <HomeworkList items={done} />}
           </View>
         )}
@@ -310,10 +328,11 @@ function DuplicateStack({ front, others }: { front: Homework; others: Homework[]
 // badge：标题后面的小标签；onOpen：点这一行时做什么，不给就是打开详情
 function HomeworkRow({ item, last, badge, onOpen }: { item: Homework; last: boolean; badge?: string; onOpen?: () => void }) {
   const { theme } = useTheme();
-  const { courseById, toggleDone } = useStore();
+  const { courseById, toggleDone, setArchived } = useStore();
   const toast = useToast();
   const course = courseById(item.courseId);
   const urgent = !item.done && isUrgent(item.due);
+  const finished = isFinished(item);
   // 服务器作业在截止时间后面跟几个小字：有争议、已延期、几个人传了……
   const r = item.remote;
   const tags = r
@@ -353,6 +372,18 @@ function HomeworkRow({ item, last, badge, onOpen }: { item: Homework; last: bool
     });
   }
 
+  // 已完成的往左划：归档
+  function swipeArchive() {
+    if (completing) return;
+    setCompleting(true);
+    Animated.timing(collapse, { toValue: 0, duration: 240, easing: Easing.inOut(Easing.cubic), useNativeDriver: false }).start(() => {
+      const before = item.archived;
+      setArchived({ [item.id]: true });
+      haptic.success();
+      toast(`「${item.title}」已归档`, { label: '撤销', onPress: () => setArchived({ [item.id]: before }) });
+    });
+  }
+
   function complete() {
     if (completing) return;
     if (item.done) {
@@ -384,6 +415,7 @@ function HomeworkRow({ item, last, badge, onOpen }: { item: Homework; last: bool
         label={item.done ? '恢复' : '完成'}
         icon={item.done ? 'arrow-undo' : 'checkmark'}
         onCommit={swipeCommit}
+        leftward={finished ? { label: '归档', icon: 'archive-outline', onCommit: swipeArchive } : undefined}
         onSwipe={() => { swipedAt.current = Date.now(); }}>
       <Press
         onPress={() => {
@@ -462,6 +494,7 @@ function HomeworkRow({ item, last, badge, onOpen }: { item: Homework; last: bool
 
 const styles = StyleSheet.create({
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end' },
+  archiveAll: { flexDirection: 'row', alignItems: 'center', gap: 4, marginLeft: 'auto', marginBottom: 10, paddingHorizontal: 10, height: 26, borderRadius: 999, borderWidth: 1 },
   add: { width: 42, height: 42, borderRadius: 21, borderWidth: 1, alignItems: 'center', justifyContent: 'center', marginBottom: 4 },
   start: { flexDirection: 'row', alignItems: 'center', marginTop: 14, paddingHorizontal: 18, height: 40, borderRadius: 999, borderWidth: 1 },
   row: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, paddingHorizontal: 16 },

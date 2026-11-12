@@ -5,6 +5,7 @@ import { setToken } from '@/api/client';
 import type { UserRef } from '@/api/types';
 
 import { Course, Homework, Profile, ReactionKey, Reminder, Settings, TimetableSettings } from './types';
+import { isArchived } from './archive';
 import { dropDemo } from './legacy';
 import { mergeImportedCourses, migrateCourse } from './schedule';
 import { createPersistence } from './persistence';
@@ -36,6 +37,8 @@ type StoreValue = {
   courseById: (id: string) => Course | undefined;
   toggleDone: (id: string) => void;
   toggleIgnored: (id: string) => void;
+  // 归档 / 移回：传 { 作业 id: true 归档 | false 移回 | undefined 交给自动规则 }。撤销时把原来的值传回去
+  setArchived: (changes: Record<string, boolean | undefined>) => void;
   toggleReaction: (id: string, key: ReactionKey) => void;
   // 对"这几条是不是同一份作业"投票；再点一次同样的就是撤回
   voteDuplicate: (id: string, agree: boolean) => void;
@@ -70,6 +73,16 @@ const reviveDates = (_key: string, value: unknown) =>
   typeof value === 'string' && ISO_DATE.test(value) ? new Date(value) : value;
 
 const StoreContext = createContext<StoreValue | null>(null);
+
+// 同一条作业从服务器拿到新内容时，这些只存在手机上的东西要接着用
+const localOnly = (h: Homework) => ({
+  done: h.done,
+  doneAt: h.doneAt,
+  reminders: h.reminders,
+  dupVote: h.dupVote,
+  ignored: h.ignored,
+  archived: h.archived,
+});
 
 let seq = 0;
 const newId = (prefix: string) => `${prefix}-${Date.now()}-${seq++}`;
@@ -140,11 +153,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const replaceRemote = useCallback((courseIds: string[], items: Homework[]) => {
     setHomework((list) => {
       const old = new Map(list.filter((h) => h.remote).map((h) => [h.id, h]));
-      const keep = list.filter((h) => !(h.remote && courseIds.includes(h.courseId)) && !items.some((x) => x.id === h.id));
-      // 完成状态、自己设的提醒只存在手机上，换成新内容时接着用
+      const now = new Date();
+      // 服务器只返回截止一个月以内的作业。已经归档的老作业服务器不再给了，手机上要留着，随时还能点开看
+      const keep = list.filter(
+        (h) => (!(h.remote && courseIds.includes(h.courseId)) || isArchived(h, now)) && !items.some((x) => x.id === h.id),
+      );
+      // 完成状态、自己设的提醒、归档这些只存在手机上，换成新内容时接着用
       const fresh = items.map((x) => {
         const prev = old.get(x.id);
-        return prev ? { ...x, done: prev.done, reminders: prev.reminders, dupVote: prev.dupVote, ignored: prev.ignored } : x;
+        return prev ? { ...x, ...localOnly(prev) } : x;
       });
       return [...fresh, ...keep];
     });
@@ -153,7 +170,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const upsertRemote = useCallback((item: Homework) => {
     setHomework((list) => {
       const prev = list.find((h) => h.id === item.id);
-      const next = prev ? { ...item, done: prev.done, reminders: prev.reminders, dupVote: prev.dupVote, ignored: prev.ignored } : item;
+      const next = prev ? { ...item, ...localOnly(prev) } : item;
       return prev ? list.map((h) => (h.id === item.id ? next : h)) : [next, ...list];
     });
   }, []);
@@ -162,12 +179,19 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setCourses((list) => (list.some((x) => x.serverClassId === c.serverClassId) ? list : [...list, { ...c, hue: list.length % 5 }]));
   }, []);
 
+  // 打勾记下时间；取消完成就清掉时间，也从归档里拿出来（回到首页待完成）
   const toggleDone = useCallback((id: string) => {
-    setHomework((list) => list.map((h) => (h.id === id ? { ...h, done: !h.done } : h)));
+    setHomework((list) =>
+      list.map((h) => (h.id !== id ? h : h.done ? { ...h, done: false, doneAt: undefined, archived: undefined } : { ...h, done: true, doneAt: new Date() })),
+    );
   }, []);
 
   const toggleIgnored = useCallback((id: string) => {
-    setHomework((list) => list.map((h) => (h.id === id ? { ...h, ignored: !h.ignored } : h)));
+    setHomework((list) => list.map((h) => (h.id !== id ? h : h.ignored ? { ...h, ignored: false, archived: h.done ? h.archived : undefined } : { ...h, ignored: true })));
+  }, []);
+
+  const setArchived = useCallback((changes: Record<string, boolean | undefined>) => {
+    setHomework((list) => list.map((h) => (h.id in changes ? { ...h, archived: changes[h.id] } : h)));
   }, []);
 
   const toggleReaction = useCallback((id: string, key: ReactionKey) => {
@@ -253,9 +277,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     (id: string) => {
       const course = courses.find((c) => c.id === id);
       if (!course) return undefined;
-      const related = homework.filter((h) => h.courseId === id);
+      const now = new Date();
+      // 归档里的作业是「完成记录」，课删了也留着，记下课名
+      const related = homework.filter((h) => h.courseId === id && !isArchived(h, now));
       setCourses((list) => list.filter((c) => c.id !== id));
-      setHomework((list) => list.filter((h) => h.courseId !== id));
+      setHomework((list) =>
+        list.flatMap((h) => (h.courseId !== id ? [h] : isArchived(h, now) ? [{ ...h, courseName: course.name }] : [])),
+      );
       return { course, homework: related };
     },
     [courses, homework],
@@ -316,6 +344,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       courseById,
       toggleDone,
       toggleIgnored,
+      setArchived,
       toggleReaction,
       voteDuplicate,
       setReminders,
@@ -347,6 +376,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       courseById,
       toggleDone,
       toggleIgnored,
+      setArchived,
       toggleReaction,
       voteDuplicate,
       setReminders,

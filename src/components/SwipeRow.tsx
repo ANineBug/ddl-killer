@@ -15,13 +15,16 @@ type IconName = ComponentProps<typeof Ionicons>['name'];
 const COMMIT_RATIO = 0.3;
 
 // 可以左右划走的一行：内容跟着手指走，露出来的地方显示"松手会发生什么"。
-// 往左往右都一样；滑过三成宽度（或者快速甩一下）松手才生效，否则弹回去。
+// 往左往右默认一样；给了 leftward 的话，往左划换成另一件事（比如已完成的作业：往右恢复、往左归档）。
+// 滑过三成宽度（或者快速甩一下）松手才生效，否则弹回去。
 // 手指先上下动的话算滚动页面，这个手势自动让路
-export function SwipeRow({ label, icon, onCommit, onSwipe, children }: {
+export function SwipeRow({ label, icon, onCommit, leftward, onSwipe, children }: {
   label: string;
   icon: IconName;
   // 划走的动画结束后调用
   onCommit: () => void;
+  // 往左划时做的另一件事；不给就和往右一样
+  leftward?: { label: string; icon: IconName; onCommit: () => void };
   // 开始划和松手时各调用一次；网页上用它挡掉松手后误触发的点击
   onSwipe?: () => void;
   children: ReactNode;
@@ -34,6 +37,7 @@ export function SwipeRow({ label, icon, onCommit, onSwipe, children }: {
   const gone = useSharedValue(false);
 
   const tick = () => haptic.select();
+  const commit = (dir: number) => (dir < 0 && leftward ? leftward.onCommit() : onCommit());
   const swiped = () => onSwipe?.();
 
   const pan = usePanGesture({
@@ -65,7 +69,7 @@ export function SwipeRow({ label, icon, onCommit, onSwipe, children }: {
         gone.value = true;
         x.value = withTiming(Math.sign(tx) * width.value, { duration: 180, easing: Easing.out(Easing.quad) }, (finished) => {
           'worklet';
-          if (finished) scheduleOnRN(onCommit);
+          if (finished) scheduleOnRN(commit, Math.sign(tx));
         });
       } else {
         x.value = withTiming(0, { duration: 220, easing: Easing.out(Easing.cubic) });
@@ -78,7 +82,8 @@ export function SwipeRow({ label, icon, onCommit, onSwipe, children }: {
   return (
     <View onLayout={(e) => { width.value = e.nativeEvent.layout.width; }}>
       <Hint side="left" x={x} width={width} armed={armed} label={label} icon={icon} color={theme.accent} bg={theme.accentSoft} />
-      <Hint side="right" x={x} width={width} armed={armed} label={label} icon={icon} color={theme.accent} bg={theme.accentSoft} />
+      {/* 内容往左走，露出右边这条 */}
+      <Hint side="right" x={x} width={width} armed={armed} label={leftward?.label ?? label} icon={leftward?.icon ?? icon} color={theme.accent} bg={theme.accentSoft} />
       {/* pan-y：网页上仍然让浏览器自己处理上下滚动 */}
       <GestureDetector gesture={pan} touchAction="pan-y">
         <Reanimated.View style={content}>{children}</Reanimated.View>

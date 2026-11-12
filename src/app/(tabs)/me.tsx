@@ -13,6 +13,7 @@ import { useToast } from '@/components/Toast';
 import { TabScreen } from '@/components/TabScreen';
 import { TabScrollView } from '@/components/TabScroll';
 import { Card, Press, Section, Txt } from '@/components/ui';
+import { completionStats, isArchived } from '@/data/archive';
 import { errorText, useOnline } from '@/data/online';
 import { useStore } from '@/data/store';
 import { fonts, ThemeName, themeNames, themes } from '@/theme/tokens';
@@ -23,6 +24,8 @@ const TIER_NAMES = { newbie: '新同学', member: '同学', helper: '热心同�
 export default function MeScreen() {
   const { theme } = useTheme();
   const { profile, setProfile, homework, settings, setSettings } = useStore();
+  const record = completionStats(homework, new Date());
+  const archivedCount = homework.filter((h) => isArchived(h, new Date())).length;
   const insets = useSafeAreaInsets();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(profile.nickname);
@@ -153,6 +156,22 @@ export default function MeScreen() {
           <Stat value={uploaded} label="我上传的" />
           <Stat value={confirmed} label="我确认的" />
         </View>
+
+        {/* 完成记录：完成多少、按时率、归档了多少，点进去看小结和归档的作业 */}
+        <Section title="完成记录">
+          <Press onPress={() => router.push('/archive')}>
+            <Card style={{ paddingVertical: 14, paddingHorizontal: 16 }}>
+              <View style={{ flexDirection: 'row' }}>
+                <RecordNumber value={String(record.total)} label="完成的作业" />
+                <RecordNumber value={record.onTime === null ? '—' : `${Math.round(record.onTime * 100)}%`} label="按时交" />
+                <RecordNumber value={String(archivedCount)} label="已归档" />
+              </View>
+              <Txt variant="caption" tone="accent" style={{ marginTop: 10 }}>
+                看完成记录和归档 ›
+              </Txt>
+            </Card>
+          </Press>
+        </Section>
 
         <Section title="外观">
           <View style={styles.themes}>
@@ -328,3 +347,16 @@ const styles = StyleSheet.create({
   swatchLine: { height: 5, borderRadius: 3 },
   themeLabel: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, paddingVertical: 10 },
 });
+
+function RecordNumber({ value, label }: { value: string; label: string }) {
+  return (
+    <View style={{ flex: 1 }}>
+      <Txt variant="title" style={{ fontSize: 22 }}>
+        {value}
+      </Txt>
+      <Txt variant="caption" tone="sub">
+        {label}
+      </Txt>
+    </View>
+  );
+}
