@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "作业",
+    "name": "DDL斩",
     "slug": "homework-app",
     "version": "1.0.2",
     "orientation": "portrait",
@@ -11,7 +11,7 @@
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
+        "backgroundColor": "#c2603e",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"

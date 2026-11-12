@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DDL斩 · 同学一起记作业，再也不漏 DDL</title>
+<meta name="description" content="DDL斩：同一个教学班的同学一起记作业。有人传、大家确认、传错一起改，截止前手机提醒。不要学号姓名，代码公开。">
+<meta name="theme-color" content="#faf9f5">
+<meta property="og:title" content="DDL斩 · 同学一起记作业，再也不漏 DDL">
+<meta property="og:description" content="老师布置的作业，班里有人传上来，大家都能看到；到点了手机提醒你。">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<style>
+  /* 只用系统字体，不加载任何外部资源：大陆访问外网字体、CDN 都不稳定 */
+  :root {
+    --serif: "Noto Serif SC", "Source Han Serif SC", "Songti SC", STSong, "SimSun", serif;
+    --sans: system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+    --bg: #faf9f5; --card: #ffffff; --line: #e8e5db; --text: #1f1e1d; --sub: #73716a; --faint: #b6b3a9;
+    --accent: #c2603e; --urgent: #b03a22; --soft: rgba(194, 96, 62, .10);
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.6 var(--sans); }
+  a { color: inherit; }
+  h1, h2, .serif { font-family: var(--serif); font-weight: 600; letter-spacing: .5px; }
+  .container { max-width: 1120px; margin: 0 auto; padding: 0 20px; }
+
+  /* 顶栏 */
+  .nav { display: flex; align-items: center; justify-content: space-between; padding: 18px 0; }
+  .brand { display: flex; align-items: center; gap: 10px; text-decoration: none; font-family: var(--serif); font-weight: 700; font-size: 19px; letter-spacing: 1px; }
+  .brand img { width: 32px; height: 32px; border-radius: 9px; }
+  .nav .links { display: none; gap: 26px; font-size: 14px; color: var(--sub); }
+  .nav .links a { text-decoration: none; }
+  .nav .links a:hover { color: var(--text); }
+
+  /* 开头：左边说话，右边手机 */
+  .hero { display: flex; flex-direction: column; align-items: center; gap: 36px; padding: 18px 0 46px; }
+  .hero h1 { font-size: 34px; line-height: 1.3; margin: 0; }
+  .hero .lead { color: var(--sub); font-size: 16px; line-height: 1.85; margin: 16px 0 0; }
+  .cta { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 26px; }
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 50px; padding: 0 24px; border-radius: 999px; font-size: 15px; font-weight: 600; text-decoration: none; border: 1px solid transparent; transition: opacity .15s; }
+  .btn:hover { opacity: .85; }
+  .btn.main { background: var(--text); color: var(--bg); }
+  .btn.ghost { border-color: var(--line); color: var(--sub); }
+  .btn svg { width: 18px; height: 18px; }
+  .hint { font-size: 12.5px; color: var(--faint); margin-top: 12px; }
+  .stats { display: flex; gap: 26px; margin-top: 30px; color: var(--sub); font-size: 12.5px; }
+  .stats b { display: block; font-family: var(--serif); font-size: 21px; color: var(--text); font-weight: 600; }
+
+  /* 手机样机：照着 app 首页画的 */
+  .phone { width: 280px; flex: none; border-radius: 36px; padding: 9px; background: var(--text); box-shadow: 0 26px 60px rgba(40, 30, 20, .18); }
+  .screen { border-radius: 28px; overflow: hidden; background: var(--bg); padding: 28px 14px 14px; font-size: 11px; position: relative; height: 540px; }
+  .screen .date { color: var(--sub); font-size: 10px; }
+  .screen .hello { font-family: var(--serif); font-size: 25px; font-weight: 600; margin: 2px 0 4px; }
+  .screen .summary { color: var(--sub); font-size: 10.5px; }
+  .screen .summary b { color: var(--urgent); }
+  .screen .group { color: var(--sub); font-size: 10px; margin: 14px 0 6px 3px; }
+  .mcard { background: var(--card); border: .5px solid var(--line); border-radius: 13px; }
+  .mrow { display: flex; align-items: center; padding: 9px 11px; gap: 9px; }
+  .mrow + .mrow { border-top: .5px solid #eeebe3; }
+  .circle { width: 16px; height: 16px; border-radius: 50%; border: 1.3px solid var(--faint); flex: none; }
+  .circle.on { background: var(--accent); border-color: var(--accent); position: relative; }
+  .circle.on::after { content: ""; position: absolute; left: 4.5px; top: 1.5px; width: 4px; height: 8px; border: solid #fff; border-width: 0 1.5px 1.5px 0; transform: rotate(45deg); }
+  .mt { font-size: 11.5px; }
+  .mt.done { color: var(--sub); text-decoration: line-through; }
+  .ms { font-size: 9.5px; color: var(--sub); margin-top: 1px; }
+  .ms .u { color: var(--urgent); font-weight: 700; }
+  .mcount { margin-left: auto; color: var(--faint); font-size: 9.5px; display: flex; gap: 2px; align-items: center; }
+  .pill { display: inline-block; font-size: 8.5px; color: var(--accent); background: var(--soft); border-radius: 999px; padding: 0 5px; margin-left: 4px; vertical-align: 1px; }
+  .tail { height: 4px; margin: 0 auto; border: .5px solid var(--line); border-top: 0; border-radius: 0 0 9px 9px; }
+  .tabbar { position: absolute; left: 50%; bottom: 12px; transform: translateX(-50%); display: flex; gap: 4px; padding: 4px; border-radius: 999px; background: rgba(250, 249, 245, .92); border: .5px solid var(--line); }
+  .tabbar span { font-size: 9px; color: var(--faint); padding: 4px 12px; border-radius: 999px; }
+  .tabbar span.on { background: rgba(194, 96, 62, .12); color: var(--text); font-weight: 600; }
+
+  /* 四个功能 */
+  .cards { display: grid; gap: 12px; grid-template-columns: 1fr; padding-bottom: 20px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 18px; display: flex; flex-direction: column; gap: 10px; }
+  .card h3 { font-family: var(--serif); font-size: 19px; font-weight: 600; margin: 0; }
+  .card p { color: var(--sub); line-height: 1.75; margin: 0; font-size: 14px; }
+  .art { margin-top: auto; padding-top: 6px; }
+  .mini { background: var(--bg); border: 1px solid var(--line); border-radius: 14px; padding: 11px 12px; font-size: 12px; }
+  .notif { display: flex; gap: 10px; align-items: flex-start; }
+  .notif img { width: 30px; height: 30px; border-radius: 8px; flex: none; }
+  .bubble { display: inline-block; padding: 6px 10px; border-radius: 12px; background: var(--card); border: 1px solid var(--line); margin-top: 5px; }
+  .bubble.me { background: var(--soft); border-color: transparent; }
+  .who { font-size: 10.5px; color: var(--faint); }
+
+  /* 隐私、安装 */
+  .section { padding: 44px 0; border-top: 1px solid var(--line); display: grid; gap: 10px; }
+  .section h2 { font-size: 25px; margin: 0; }
+  .section ul { margin: 6px 0 0; padding-left: 20px; color: var(--sub); line-height: 1.9; }
+  .section .note { font-size: 13px; color: var(--faint); margin: 4px 0 0; }
+  .footer { padding: 28px 0 40px; border-top: 1px solid var(--line); color: var(--faint); font-size: 13px; display: flex; flex-wrap: wrap; gap: 8px 18px; justify-content: space-between; }
+  .footer a { text-decoration: none; }
+  .footer a:hover { color: var(--sub); }
+
+  @media (min-width: 820px) {
+    .container { padding: 0 48px; }
+    .nav { padding: 26px 0; }
+    .nav .links { display: flex; }
+    .hero { flex-direction: row; justify-content: space-between; padding: 40px 0 72px; }
+    .hero .copy { max-width: 540px; }
+    .hero h1 { font-size: 54px; }
+    .hero .lead { font-size: 17px; }
+    .cards { grid-template-columns: repeat(4, 1fr); }
+    .section { grid-template-columns: 1fr 1.6fr; gap: 40px; padding: 56px 0; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <header class="nav">
+    <a class="brand" href="./"><img src="favicon.svg" alt="">DDL斩</a>
+    <nav class="links"><a href="#features">功能</a><a href="#privacy">隐私</a><a href="#install">安装</a><a href="https://github.com/ANineBug/ddl-killer">GitHub</a></nav>
+  </header>
+
+  <section class="hero">
+    <div class="copy">
+      <h1>同学一起记作业，<br>再也不漏 DDL</h1>
+      <p class="lead">老师布置的作业，班里有人传上来，大家都能看到；传错了一起改，截止前手机提醒你。</p>
+      <div class="cta">
+        <a class="btn main" href="https://github.com/ANineBug/ddl-killer/releases/latest/download/ddl-killer.apk">
+          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M17.6 9.48l1.84-3.18a.38.38 0 0 0-.66-.38l-1.86 3.22a11.4 11.4 0 0 0-9.84 0L5.22 5.92a.38.38 0 0 0-.66.38L6.4 9.48A10.8 10.8 0 0 0 1 18h22a10.8 10.8 0 0 0-5.4-8.52zM7 15.25a1.25 1.25 0 1 1 1.25-1.25A1.25 1.25 0 0 1 7 15.25zm10 0A1.25 1.25 0 1 1 18.25 14 1.25 1.25 0 0 1 17 15.25z"/></svg>下载安卓版</a>
+        <a class="btn ghost" href="https://github.com/ANineBug/ddl-killer">
+          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .5a11.5 11.5 0 0 0-3.64 22.41c.58.1.79-.25.79-.56v-2c-3.2.7-3.88-1.37-3.88-1.37a3.05 3.05 0 0 0-1.28-1.69c-1.05-.72.08-.7.08-.7a2.42 2.42 0 0 1 1.76 1.19 2.45 2.45 0 0 0 3.35.95 2.46 2.46 0 0 1 .73-1.54c-2.55-.29-5.24-1.28-5.24-5.68a4.45 4.45 0 0 1 1.18-3.08 4.13 4.13 0 0 1 .11-3.04s.97-.31 3.17 1.18a10.9 10.9 0 0 1 5.77 0c2.2-1.49 3.17-1.18 3.17-1.18a4.13 4.13 0 0 1 .11 3.04 4.44 4.44 0 0 1 1.18 3.08c0 4.41-2.69 5.38-5.25 5.67a2.75 2.75 0 0 1 .78 2.13v3.16c0 .31.21.67.8.56A11.5 11.5 0 0 0 12 .5z"/></svg>GitHub</a>
+      </div>
+      <p class="hint">安卓 · 免费 · 不要学号姓名 · 先在西南财经大学试用</p>
+      <div class="stats"><div><b>1 次</b>导入课表</div><div><b>0 个</b>学号姓名</div><div><b>2 道</b>提醒保险</div></div>
+    </div>
+
+    <div class="phone" aria-hidden="true"><div class="screen">
+      <div class="date">11 月 11 日 · 周三</div>
+      <div class="hello">晚上好</div>
+      <div class="summary">还有 4 项待完成，最近的在 <b>今晚 23:59</b></div>
+      <div class="group">今天</div>
+      <div class="mcard"><div class="mrow"><div class="circle"></div><div><div class="mt">习题 3.2<span class="pill">可能重复 · 2</span></div><div class="ms">概率论 · <span class="u">今晚 23:59 截止</span></div></div><div class="mcount">18</div></div></div>
+      <div class="tail" style="width:92%;background:#f4f2ec"></div><div class="tail" style="width:84%;background:#eeebe3"></div>
+      <div class="group">明天</div>
+      <div class="mcard">
+        <div class="mrow"><div class="circle"></div><div><div class="mt">Problem Set 4</div><div class="ms">中级微观 · 明天 14:00 截止</div></div><div class="mcount">21</div></div>
+        <div class="mrow"><div class="circle"></div><div><div class="mt">读书报告</div><div class="ms">大学语文 · 截止待定 · 选做</div></div><div class="mcount">3</div></div>
+      </div>
+      <div class="group">这周</div>
+      <div class="mcard">
+        <div class="mrow"><div class="circle"></div><div><div class="mt">Unit 6 议论文</div><div class="ms">大学英语 · 周五 18:00 截止</div></div><div class="mcount">9</div></div>
+        <div class="mrow"><div class="circle on"></div><div><div class="mt done">实验三：文件读写</div><div class="ms">Python · 周日 23:59 截止</div></div><div class="mcount">12</div></div>
+      </div>
+      <div class="tabbar"><span class="on">作业</span><span>课表</span><span>我的</span></div>
+    </div></div>
+  </section>
+
+  <section class="cards" id="features">
+    <div class="card">
+      <h3>有人传，全班看见</h3>
+      <p>同一个教学班的同学，谁听到作业就传一条。课表从教务一键导入，自动认出你在哪些班。</p>
+      <div class="art"><div class="mini"><div style="font-weight:600">第四章案例分析</div><div class="who" style="margin-top:2px">会计学原理 · 下次课前 · 小组作业</div></div></div>
+    </div>
+    <div class="card">
+      <h3>传错了，大家一起改</h3>
+      <p>点「有问题」提出修改，同学投票或者上传的人采纳就改过来。每次改动都留着记录。</p>
+      <div class="art"><div class="mini"><div style="display:flex;justify-content:space-between"><b>内容不对</b><span style="color:var(--accent);font-size:11px">投票中</span></div><div style="margin-top:5px">提交方式：纸质 → 学习通</div><div class="who" style="margin-top:5px">同意 2 / 反对 0 · 够 2 就生效</div></div></div>
+    </div>
+    <div class="card">
+      <h3>到点提醒，宁早不晚</h3>
+      <p>截止前 1 天、前 3 小时提醒，落在深夜的挪到前一晚。还可以每天早上收一封邮件。</p>
+      <div class="art"><div class="mini notif"><img src="favicon.svg" alt=""><div><div style="font-weight:600">习题 3.2 · 还有 3 小时截止</div><div class="who" style="margin-top:2px">概率论 · 今晚 23:59 截止</div></div></div></div>
+    </div>
+    <div class="card">
+      <h3>每个班一个聊天室</h3>
+      <p>对作业有疑问就在班里问一句，作业卡片可以直接分享进来，发现错了顺手纠正。</p>
+      <div class="art"><div class="mini"><div class="who">同学7404 · 热心同学</div><div class="bubble">第三章是交学习通吗？</div><div style="text-align:right"><div class="bubble me">交学习通，老师刚改的</div></div></div></div>
+    </div>
+  </section>
+
+  <section class="section" id="privacy">
+    <h2>我们不碰你的隐私</h2>
+    <ul>
+      <li>只用邮箱注册，不要学号，不要姓名。</li>
+      <li>教务的账号密码只在学校自己的登录页里输入，app 读不到，也不保存。</li>
+      <li>导入课表时只上传课程安排（哪门课、几点、在哪），别的信息在手机上就丢掉了。</li>
+      <li>代码全部公开在 GitHub，谁都可以检查。</li>
+    </ul>
+  </section>
+
+  <section class="section" id="install">
+    <h2>安装前看一眼</h2>
+    <div>
+      <ul>
+        <li>目前只有安卓版，支持 64 位手机，近几年买的基本都是。</li>
+        <li>下载后打开安装包，系统提示「未知来源」时选允许。</li>
+        <li>想让提醒准时：在 app 的「我的 → 提醒可能不准时」里按提示设置一下，还可以发一条测试提醒看看。</li>
+      </ul>
+      <p class="note">下载慢或者打不开的话，可以到 GitHub 的发布页手动下载。</p>
+    </div>
+  </section>
+
+  <footer class="footer">
+    <span>DDL斩 · 同学们自己做的作业工具</span>
+    <span><a href="https://github.com/ANineBug/ddl-killer">GitHub</a> · <a href="https://github.com/ANineBug/ddl-killer/releases">所有版本</a></span>
+  </footer>
+
+</div>
+</body>
+</html>

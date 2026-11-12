@@ -10,7 +10,7 @@
 
 - **是什么**：西南财经大学（成都）学生用的作业聚合和 DDL 提醒 app。同学上传作业，同一教学班的人都能看到。目前只做安卓，只打 arm64。
 - **现状**：纯前端，没有后端。数据存在手机本地（AsyncStorage），演示数据在 `src/data/mock.ts`。
-- **仓库**：`ANineBug/homework-app`（私有），主分支 `main`。
+- **仓库**：`ANineBug/ddl-killer`（公开），主分支 `main`。app 名字叫「DDL斩」。
 - **技术栈**：Expo SDK 58、React Native 0.88、React 19.3、TypeScript、Expo Router（路由在 `src/app/`，`@/` 指向 `src/`）。
 
 ### 必须遵守（来自 `AGENTS.md`）
