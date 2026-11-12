@@ -282,9 +282,17 @@ EOF
 2. Actions → 打包安卓 APK → Run workflow，分支选 `feat/app-online`
 3. 打完在这次运行的页面底部下载 `ddl-killer-apk`
 
-**还没做的**：现在的 APK 还是用模板自带的调试签名。正式发给同学之前要换成自己的签名密钥，放进 GitHub Secrets。否则以后换签名，所有人都得卸载重装，手机上的数据也会丢。这一步要改打包流程，单独做。
+**正式签名**：密钥文件 `ddl-killer-release.p12` 和密码由项目负责人自己保管（不在仓库里），打包时从仓库的 Secrets 读：
 
-签名换好之后，推一个 `v` 开头的标签（比如 `v1.0.0`）会自动发 Release。网站上的下载按钮指向的是
+| Secret | 内容 |
+|---|---|
+| `ANDROID_KEYSTORE_BASE64` | `.p12` 文件做 base64 以后的文本 |
+| `ANDROID_KEYSTORE_PASSWORD` | 密钥密码 |
+| `ANDROID_KEY_ALIAS` | `ddl-killer` |
+
+打包日志里会打印签名证书的 SHA-256，正式签名是 `84b8aa40…00b2245d`。发布版本（推标签）如果不是这个签名，打包会直接失败，避免把临时签名的包发出去。**密钥丢了就再也没法给已经装了的同学发可覆盖的更新**，一定要多处备份。
+
+推一个 `v` 开头的标签（比如 `v1.0.0`）会自动发 Release。网站上的下载按钮指向的是
 `https://github.com/ANineBug/ddl-killer/releases/latest/download/ddl-killer.apk`，第一次发版后才能下载。
 
 ---
