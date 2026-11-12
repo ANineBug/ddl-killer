@@ -69,6 +69,14 @@ sudo useradd --system --create-home --shell /usr/sbin/nologin ddl
 
 **确认**：`sudo ufw status` 显示 22、80、443 是 ALLOW。
 
+**时钟要准**（https 证书、每天早上 7 点的邮件提醒都靠它）：`timedatectl` 里 `System clock synchronized` 要是 `yes`。有的服务器连不上默认的校时服务器（`ntp.ubuntu.com` 走 IPv6），就加几个别的：
+
+```bash
+sudo mkdir -p /etc/systemd/timesyncd.conf.d
+printf "[Time]\nNTP=time.cloudflare.com ntp.ubuntu.com\nFallbackNTP=pool.ntp.org\n" | sudo tee /etc/systemd/timesyncd.conf.d/ntp.conf
+sudo systemctl restart systemd-timesyncd
+```
+
 ---
 
 ## 3. 装 Node 24、PostgreSQL、Caddy
@@ -78,8 +86,11 @@ sudo useradd --system --create-home --shell /usr/sbin/nologin ddl
 curl -fsSL https://deb.nodesource.com/setup_24.x | sudo -E bash -
 sudo apt install -y nodejs
 
-# PostgreSQL（Ubuntu 自带的版本就行）
-sudo apt install -y postgresql
+# PostgreSQL 17（官方源。Ubuntu 22.04 自带的 14 已在 2026 年 11 月停止维护，所以不用系统自带的）
+sudo install -d /usr/share/postgresql-common/pgdg
+sudo curl -fsSL -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc
+echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(. /etc/os-release && echo $VERSION_CODENAME)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
+sudo apt update && sudo apt install -y postgresql-17
 
 # Caddy（官方源）
 sudo apt install -y debian-keyring debian-archive-keyring apt-transport-https
