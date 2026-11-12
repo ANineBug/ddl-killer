@@ -240,7 +240,7 @@ export default function Upload() {
       </ChipGroup>
 
       {shared && (
-        <ChipGroup label="标签">
+        <ChipGroup label="标签（可选）">
           <Chip label="选做（非必做）" active={optional} onPress={() => setOptional((v) => !v)} />
           <Chip label="小组作业" active={groupWork} onPress={() => setGroupWork((v) => !v)} />
         </ChipGroup>
