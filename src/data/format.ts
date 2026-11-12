@@ -64,12 +64,6 @@ export const formatSession = (s: Session) => `${weekdayNames[s.weekday]} ${s.fro
 export const formatWeeks = (weeks: WeekRange[]) => `第 ${normalizeWeeks(weeks).map((w) =>
   `${w.from === w.to ? w.from : `${w.from}-${w.to}`}${w.rule === 'odd' ? '单' : w.rule === 'even' ? '双' : ''}`).join('、')} 周`;
 
-// 演示用：假设本学期已经上到第 10 周
-const DEMO_CURRENT_WEEK = 10;
-export function currentWeek() {
-  return DEMO_CURRENT_WEEK;
-}
-
 export function formatToday(d = new Date()) {
   return `${d.getMonth() + 1} 月 ${d.getDate()} 日 · ${weekdayNames[isoWeekday(d)]}`;
 }

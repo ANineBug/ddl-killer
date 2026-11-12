@@ -116,7 +116,8 @@ export default function Upload() {
       return;
     }
     addHomework(data);
-    toast(course?.source ? '已保存在本机，联网共享功能尚未接入' : `已发布，同课的 ${course?.members ?? 0} 位同学都能看到了`);
+    // 走到这里的课还没连上服务器上的教学班，作业只记在这台手机上
+    toast('已保存在本机，这门课还没连上教学班，同学看不到');
   }
 
   return (

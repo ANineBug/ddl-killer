@@ -28,7 +28,7 @@ const groups = [
 
 export default function HomeworkScreen() {
   const { theme } = useTheme();
-  const { homework } = useStore();
+  const { homework, courses } = useStore();
   const insets = useSafeAreaInsets();
   const [showDone, setShowDone] = useState(false);
   const online = useOnline();
@@ -100,18 +100,42 @@ export default function HomeworkScreen() {
                 {formatDue(next.due)}
               </Txt>
             </>
-          ) : (
+          ) : courses.length ? (
             '全部完成了'
+          ) : (
+            '课表还是空的'
           )}
         </Txt>
 
-        {pending.length === 0 && (
+        {/* 刚装好、课表还是空的：先引导去导入课表，有了课才有作业 */}
+        {courses.length === 0 ? (
           <Card style={{ marginTop: 22, padding: 28, alignItems: 'center' }}>
-            <Txt variant="title">没有待完成的作业</Txt>
-            <Txt variant="sub" tone="sub" style={{ marginTop: 8 }}>
-              好好休息一下吧
+            <Txt variant="title">先把课表放进来</Txt>
+            <Txt variant="sub" tone="sub" style={{ marginTop: 8, textAlign: 'center' }}>
+              导入课表后，同班同学传的作业会自动出现在这里
             </Txt>
+            <Press onPress={() => router.push('/import/swufe')} style={[styles.start, { borderColor: theme.accent, backgroundColor: theme.accentSoft }]}>
+              <Ionicons name="download-outline" size={16} color={theme.accent} />
+              <Txt variant="sub" tone="accent" style={{ marginLeft: 4 }}>
+                从教务导入
+              </Txt>
+            </Press>
+            <Press onPress={() => router.push('/join-class')} style={[styles.start, { borderColor: theme.line, backgroundColor: theme.card }]}>
+              <Ionicons name="add" size={16} color={theme.text} />
+              <Txt variant="sub" style={{ marginLeft: 4 }}>
+                搜索加入
+              </Txt>
+            </Press>
           </Card>
+        ) : (
+          pending.length === 0 && (
+            <Card style={{ marginTop: 22, padding: 28, alignItems: 'center' }}>
+              <Txt variant="title">没有待完成的作业</Txt>
+              <Txt variant="sub" tone="sub" style={{ marginTop: 8 }}>
+                好好休息一下吧
+              </Txt>
+            </Card>
+          )
         )}
 
         {groups.map((g) => {
@@ -439,6 +463,7 @@ function HomeworkRow({ item, last, badge, onOpen }: { item: Homework; last: bool
 const styles = StyleSheet.create({
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end' },
   add: { width: 42, height: 42, borderRadius: 21, borderWidth: 1, alignItems: 'center', justifyContent: 'center', marginBottom: 4 },
+  start: { flexDirection: 'row', alignItems: 'center', marginTop: 14, paddingHorizontal: 18, height: 40, borderRadius: 999, borderWidth: 1 },
   row: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, paddingHorizontal: 16 },
   check: { width: 22, height: 22, borderRadius: 11, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center' },
   checkFill: { position: 'absolute', top: -1.5, left: -1.5, width: 22, height: 22, borderRadius: 11 },

@@ -4,8 +4,8 @@ import { createContext, ReactNode, useCallback, useContext, useEffect, useLayout
 import { setToken } from '@/api/client';
 import type { UserRef } from '@/api/types';
 
-import { mockCourses, mockHomework } from './mock';
 import { Course, Homework, Profile, ReactionKey, Reminder, Settings, TimetableSettings } from './types';
+import { dropDemo } from './legacy';
 import { mergeImportedCourses, migrateCourse } from './schedule';
 import { createPersistence } from './persistence';
 
@@ -53,12 +53,10 @@ type StoreValue = {
   restoreCourse: (removed: { course: Course; homework: Homework[] }) => void;
   setProfile: (p: Partial<Profile>) => void;
   setSettings: (s: Partial<Settings>) => void;
-  // 清掉手机上保存的数据，回到演示数据
-  resetDemo: () => void;
 };
 
 const STORE_KEY = 'store.v1';
-// 登录凭证单独存，"恢复演示数据"不会把人登出
+// 登录凭证单独存
 const AUTH_KEY = 'auth.v1';
 
 const defaultProfile: Profile = { nickname: '游客', avatarHue: 0 };
@@ -79,8 +77,9 @@ const newId = (prefix: string) => `${prefix}-${Date.now()}-${seq++}`;
 // 所有数据都放在这里；每次改动后自动存到手机上，下次打开接着用
 export function StoreProvider({ children }: { children: ReactNode }) {
   const [ready, setReady] = useState(false);
-  const [courses, setCourses] = useState<Course[]>(() => mockCourses.map(migrateCourse));
-  const [homework, setHomework] = useState<Homework[]>(mockHomework);
+  // 新同学从空白开始：先导入课表或加入教学班
+  const [courses, setCourses] = useState<Course[]>([]);
+  const [homework, setHomework] = useState<Homework[]>([]);
   const [profile, setProfileState] = useState<Profile>(defaultProfile);
   const [settings, setSettingsState] = useState<Settings>(defaultSettings);
   const [timetable, setTimetableState] = useState<TimetableSettings>({ starts: {} });
@@ -90,7 +89,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const persistence = useMemo(() => createPersistence(AsyncStorage, STORE_KEY), []);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
-  // 打开 app 时先读出上次保存的数据；第一次打开没有保存过，就用演示数据
+  // 打开 app 时先读出上次保存的数据；第一次打开没有保存过，就是空的
   useEffect(() => {
     // 先读登录状态，再读数据；两个都读完才画界面
     AsyncStorage.getItem(AUTH_KEY)
@@ -105,8 +104,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       .then((raw) => {
         if (!raw) return;
         const saved = JSON.parse(raw, reviveDates) as Partial<Saved>;
-        if (saved.courses) setCourses(saved.courses.map(migrateCourse));
-        if (saved.homework) setHomework(saved.homework);
+        const kept = dropDemo((saved.courses ?? []).map(migrateCourse), saved.homework ?? []);
+        setCourses(kept.courses);
+        setHomework(kept.homework);
         if (saved.profile) setProfileState({ ...defaultProfile, ...saved.profile });
         if (saved.settings) setSettingsState({ ...defaultSettings, ...saved.settings });
         if (saved.timetable) setTimetableState({ ...saved.timetable, starts: saved.timetable.starts ?? {} });
@@ -298,14 +298,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     };
   }, [courses, timetable, homework, profile, settings, persistence]);
 
-  const resetDemo = useCallback(() => {
-    setCourses(mockCourses.map(migrateCourse));
-    setHomework(mockHomework);
-    setProfileState(defaultProfile);
-    setSettingsState(defaultSettings);
-    setTimetableState({ starts: {} });
-  }, []);
-
   const value = useMemo(
     () => ({
       account,
@@ -337,7 +329,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       restoreCourse,
       setProfile,
       setSettings,
-      resetDemo,
     }),
     [
       account,
@@ -369,11 +360,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       restoreCourse,
       setProfile,
       setSettings,
-      resetDemo,
     ],
   );
 
-  // 读完保存的数据之前先不画界面，免得先闪一下演示数据
+  // 读完保存的数据之前先不画界面，免得先闪一下空页面
   if (!ready) return null;
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;
