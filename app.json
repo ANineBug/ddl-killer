@@ -2,7 +2,7 @@
   "expo": {
     "name": "DDL斩",
     "slug": "homework-app",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -18,7 +18,7 @@
       },
       "predictiveBackGestureEnabled": false,
       "package": "xyz.ninebug.homework",
-      "versionCode": 3,
+      "versionCode": 4,
       "permissions": [
         "android.permission.SCHEDULE_EXACT_ALARM"
       ],
