@@ -14,12 +14,12 @@ import { TabScreen } from '@/components/TabScreen';
 import { TabScrollView } from '@/components/TabScroll';
 import { Card, Press, Section, Txt } from '@/components/ui';
 import { completionStats, isArchived } from '@/data/archive';
+import { TIER_NAMES } from '@/data/labels';
 import { errorText, useOnline } from '@/data/online';
 import { useStore } from '@/data/store';
 import { fonts, ThemeName, themeNames, themes } from '@/theme/tokens';
 import { useTheme } from '@/theme/useTheme';
 
-const TIER_NAMES = { newbie: '新同学', member: '同学', helper: '热心同学', trusted: '靠谱同学' } as const;
 
 export default function MeScreen() {
   const { theme } = useTheme();

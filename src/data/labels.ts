@@ -49,3 +49,6 @@ export function fieldValue(k: string, v: unknown): string {
   if (k === 'status') return STATUS[String(v)] ?? String(v);
   return String(v);
 }
+
+// 班里的档位：分数决定，档位越高投票越有分量
+export const TIER_NAMES = { newbie: '新同学', member: '同学', helper: '热心同学', trusted: '靠谱同学' } as const;
