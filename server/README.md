@@ -101,7 +101,7 @@ test/                     测试，按业务场景写的，可以当规则说明
 | POST | `/proposals/:id/adopt` | 上传者 | 采纳 |
 | POST | `/proposals/:id/withdraw` | 提议人 | 撤回 |
 | GET | `/classes/:id/board` | 所有人 | 班级榜 |
-| GET | `/board?period=all|month|week` | 所有人 | 总分榜：总榜 / 月榜（每月 1 号起）/ 周榜（每周一起），登录了会带上自己的名次 |
+| GET | `/board?period=…`（all / month / week） | 所有人 | 总分榜：总榜 / 月榜（每月 1 号起）/ 周榜（每周一起），登录了会带上自己的名次 |
 | GET / POST | `/classes/:id/messages` | 班里的人 | 聊天：`?after=` 拿新消息、`?before=` 翻历史 / 发消息 `{ text, homeworkId? }` |
 | DELETE | `/admin/messages/:id`、`/admin/homework/:id` | 管理员 | 删消息、删作业 |
 | POST | `/admin/users/:id/demote` | 管理员 | 降级账号 `{ demoted }` |
