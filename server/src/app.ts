@@ -240,7 +240,12 @@ export function createApp(ctx: Ctx) {
   app.post('/proposals/:id/withdraw', async (c) => c.json({ status: await withdrawProposal(ctx, need(c), idParam(c)) }));
 
   // ---------- 排行榜 ----------
-  app.get('/board', async (c) => c.json(await globalBoard(ctx, c.get('user'))));
+  // 总分榜：?period=all（默认）/ month / week
+  app.get('/board', async (c) => {
+    const p = c.req.query('period');
+    const period = p === 'month' || p === 'week' ? p : 'all';
+    return c.json(await globalBoard(ctx, c.get('user'), period));
+  });
 
   // ---------- 聊天 ----------
   app.get('/classes/:id/messages', async (c) => {

@@ -47,3 +47,26 @@ test('排行榜：班级榜看这个班的分，总榜前 50 加自己的名次'
   assert.deepEqual(gb.data.me, { score: 0, rank: null });
   await s.close();
 });
+
+test('总分榜分总榜、月榜、周榜：周一 0 点、每月 1 号 0 点（中国时间）重新算', async () => {
+  const s = await setup(); // 2026-09-14 周一上午 10 点（中国时间）
+  const { tokens: [a, b, c], classId } = await classWith(s, 6);
+  const id = (await s.call('POST', `/classes/${classId}/homework`, a, { title: 'x', dueKind: 'tbd', submit: '纸质', source: '群通知' })).data.id;
+  await s.call('POST', `/homework/${id}/confirm`, b);
+  await s.call('POST', `/homework/${id}/confirm`, c);
+  const scores = async () =>
+    Object.fromEntries(
+      await Promise.all(
+        ['all', 'month', 'week'].map(async (p) => [p, (await s.call('GET', `/board?period=${p}`, a)).data.me.score]),
+      ),
+    );
+
+  assert.deepEqual(await scores(), { all: 10, month: 10, week: 10 });
+  s.tick(7 * 86_400_000); // 下周一：周榜清零，月榜还在
+  assert.deepEqual(await scores(), { all: 10, month: 10, week: 0 });
+  s.tick(17 * 86_400_000); // 10 月 8 日：月榜也清零，总榜一直在
+  assert.deepEqual(await scores(), { all: 10, month: 0, week: 0 });
+  // 不认识的 period 当总榜
+  assert.equal((await s.call('GET', '/board?period=year', a)).data.period, 'all');
+  await s.close();
+});
