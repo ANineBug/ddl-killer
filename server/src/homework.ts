@@ -20,7 +20,8 @@ const fields = {
   dueKind: z.enum(['at', 'next_class', 'tbd']),
   due: isoDate.nullable(),
   submit: z.string().trim().min(1).max(20),
-  source: z.enum(['课堂口头', '学习通', '群通知']),
+  // 常用的是 课堂口头 / 学习通 / 群通知，也可以自己填，最多 20 个字
+  source: z.string().trim().min(1, '来源不能为空').max(20),
   optional: z.boolean(),
   groupWork: z.boolean(),
 };

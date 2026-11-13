@@ -38,6 +38,17 @@ test('上传 → 别人确认够门槛 → 已确认，上传者 +10；自己不
   await s.close();
 });
 
+test('来源可以自己填，最多 20 个字，不能是空的', async () => {
+  const s = await setup();
+  const { tokens: [a], classId } = await classWith(s, 6);
+  const ok = await s.call('POST', `/classes/${classId}/homework`, a, { ...hw(s), source: ' 助教说的 ' });
+  assert.equal(ok.status, 201);
+  assert.equal(ok.data.source, '助教说的');
+  assert.equal((await s.call('POST', `/classes/${classId}/homework`, a, { ...hw(s, '二'), source: '  ' })).status, 400);
+  assert.equal((await s.call('POST', `/classes/${classId}/homework`, a, { ...hw(s, '三'), source: '字'.repeat(21) })).status, 400);
+  await s.close();
+});
+
 test('确认前上传者可以自己改；改过之后，之前的确认标成"修改前的确认"', async () => {
   const s = await setup();
   const { tokens: [a, b], classId } = await classWith(s, 6);
