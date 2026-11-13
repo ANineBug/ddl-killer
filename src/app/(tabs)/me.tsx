@@ -7,6 +7,8 @@ import { ActivityIndicator, Platform, StyleSheet, Switch, TextInput, View } from
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { MyClass } from '@/api/types';
+// 版本号直接读 app.json，网页预览里 expo-constants 给的不准
+import appJson from '../../../app.json';
 import { Avatar } from '@/components/Avatar';
 import { haptic } from '@/components/haptic';
 import { useToast } from '@/components/Toast';
@@ -35,6 +37,7 @@ export default function MeScreen() {
   const nickname = online.account?.user.nickname ?? profile.nickname;
   const [mine, setMine] = useState<MyClass[] | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [classesOpen, setClassesOpen] = useState(false);
 
   // 登录后拉一次"我在每个班的档位和贡献值"
   const token = online.account?.token;
@@ -138,9 +141,11 @@ export default function MeScreen() {
                 <Ionicons name="pencil" size={14} color={theme.faint} style={{ marginLeft: 8 }} />
               </Press>
             )}
-            <Txt variant="caption" tone="sub" style={{ marginTop: 4 }}>
-              {online.loggedIn ? '点头像换图片，点名字改昵称' : '游客 · 只能看，登录后才能上传和确认'}
-            </Txt>
+            {!online.loggedIn && (
+              <Txt variant="caption" tone="sub" style={{ marginTop: 4 }}>
+                游客 · 登录后才能上传和确认
+              </Txt>
+            )}
           </View>
           {!online.loggedIn && (
             <Press onPress={() => router.push('/login')} style={[styles.login, { borderColor: theme.accent, backgroundColor: theme.accentSoft }]}>
@@ -182,36 +187,44 @@ export default function MeScreen() {
           </View>
         </Section>
 
+        {/* 我的贡献：总分榜一行，各班档位收起来，班多了也不占地方 */}
         {online.loggedIn && (
           <Section title="我的贡献">
             <Card>
-              {mine === null ? (
-                <ActivityIndicator style={{ padding: 16 }} />
-              ) : mine.length === 0 ? (
-                <Txt variant="sub" tone="sub" style={{ padding: 16 }}>
-                  导入课表或加入教学班以后，这里显示你在每个班的档位
+              <NavRow label="总分榜" onPress={() => router.push('/board')} />
+              <Press
+                onPress={() => {
+                  haptic.select();
+                  setClassesOpen((v) => !v);
+                }}
+                style={[styles.row, { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.line }]}>
+                <Txt variant="sub" style={{ flex: 1 }}>
+                  各班档位
                 </Txt>
-              ) : (
-                mine.map((c, i) => (
+                {mine === null ? (
+                  <ActivityIndicator size="small" />
+                ) : (
+                  <Txt variant="caption" tone="sub">
+                    {mine.length} 个班
+                  </Txt>
+                )}
+                <Ionicons name={classesOpen ? 'chevron-up' : 'chevron-down'} size={15} color={theme.faint} />
+              </Press>
+              {classesOpen &&
+                mine?.map((c) => (
                   <Press
                     key={c.id}
                     onPress={() => router.push(`/board?classId=${c.id}`)}
-                    style={[styles.row, i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.line }]}>
-                    <Txt variant="sub" numberOfLines={1} style={{ flex: 1 }}>
+                    style={[styles.row, styles.subRow, { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.line }]}>
+                    <Txt variant="sub" tone="sub" numberOfLines={1} style={{ flex: 1 }}>
                       {c.name}
                     </Txt>
                     <Txt variant="caption" tone="sub">
                       {TIER_NAMES[c.myTier]} · {c.myScore} 分 ›
                     </Txt>
                   </Press>
-                ))
-              )}
+                ))}
             </Card>
-            <Press onPress={() => router.push('/board')} hitSlop={8} style={{ marginTop: 8, marginLeft: 4 }}>
-              <Txt variant="caption" tone="accent">
-                看总榜 ›
-              </Txt>
-            </Press>
           </Section>
         )}
 
@@ -226,23 +239,17 @@ export default function MeScreen() {
               last
             />
           </Card>
-          <Txt variant="caption" tone="faint" style={{ marginTop: 8, marginLeft: 4 }}>
-            每条作业默认按这里提醒，也可以在作业详情里单独调整
-          </Txt>
-          <Press onPress={() => router.push('/reminder-notice')} hitSlop={8} style={{ marginTop: 8, marginLeft: 4 }}>
-            <Txt variant="caption" tone="accent">
-              提醒可能不准时，以下内容你需要知道 ›
-            </Txt>
-          </Press>
-          <Press onPress={() => router.push('/class-times')} hitSlop={8} style={{ marginTop: 8, marginLeft: 4 }}>
-            <Txt variant="caption" tone="accent">
-              每节课几点上课（选填）›
-            </Txt>
-          </Press>
+        </Section>
+
+        <Section title="更多">
+          <Card>
+            <NavRow label="每节课几点上课" onPress={() => router.push('/class-times')} />
+            <NavRow label="关于提醒" onPress={() => router.push('/reminder-notice')} divider />
+          </Card>
         </Section>
 
         <Txt variant="caption" tone="faint" style={{ textAlign: 'center', marginTop: 26 }}>
-          {online.loggedIn ? '版本 0.1 · 作业和服务器同步，完成状态和提醒只存在这台手机上' : '版本 0.1 · 数据保存在这台手机上'}
+          DDL斩 {appJson.expo.version}
         </Txt>
         {online.loggedIn && (
           <Press
@@ -294,6 +301,19 @@ function ThemeOption({ name }: { name: ThemeName }) {
   );
 }
 
+// 一行可以点进去的设置项：左边名字，右边箭头
+function NavRow({ label, onPress, divider }: { label: string; onPress: () => void; divider?: boolean }) {
+  const { theme } = useTheme();
+  return (
+    <Press onPress={onPress} style={[styles.row, divider && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.line }]}>
+      <Txt variant="sub" style={{ flex: 1 }}>
+        {label}
+      </Txt>
+      <Ionicons name="chevron-forward" size={15} color={theme.faint} />
+    </Press>
+  );
+}
+
 function Stat({ value, label }: { value: number; label: string }) {
   return (
     <Card style={styles.stat}>
@@ -326,6 +346,7 @@ const styles = StyleSheet.create({
   profile: { flexDirection: 'row', alignItems: 'center', padding: 16, marginTop: 20 },
   camera: { position: 'absolute', right: -2, bottom: -2, width: 20, height: 20, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   row: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 13, paddingHorizontal: 16 },
+  subRow: { paddingVertical: 11, paddingLeft: 28 },
   login: { paddingHorizontal: 16, paddingVertical: 7, borderRadius: 999, borderWidth: 1, marginLeft: 10 },
   avatar: { width: 56, height: 56, borderRadius: 28, alignItems: 'center', justifyContent: 'center' },
   nameInput: { fontSize: 20, fontWeight: '600', borderBottomWidth: 1, paddingVertical: 2 },

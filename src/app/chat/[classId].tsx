@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { type ComponentRef, useEffect, useRef, useState } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { KeyboardAvoidingView, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { ChatMessage } from '@/api/types';
@@ -80,7 +80,7 @@ export default function Chat() {
   const shared = sharing ? homework.find((h) => h.id === localHomeworkId(sharing)) : undefined;
 
   return (
-    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
       <Backdrop />
       <View style={[styles.header, { paddingTop: insets.top + 8, borderBottomColor: theme.line }]}>
         <Press onPress={closeModal} hitSlop={12} style={styles.icon}>
@@ -171,7 +171,7 @@ function Bubble({ m, mine }: { m: ChatMessage; mine: boolean }) {
   const due = m.homework?.due ? new Date(m.homework.due) : null;
   return (
     <View style={[styles.msg, mine && { flexDirection: 'row-reverse' }]}>
-      {!mine && <Avatar user={m.user} size={30} />}
+      <Avatar user={m.user} size={30} />
       <View style={{ maxWidth: '78%', alignItems: mine ? 'flex-end' : 'flex-start' }}>
         {!mine && (
           <Txt variant="caption" tone="faint" style={{ marginBottom: 3 }}>

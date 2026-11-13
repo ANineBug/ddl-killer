@@ -12,13 +12,24 @@ const WEEK = ['一', '二', '三', '四', '五', '六', '日'];
 const sameDay = (a: Date, b: Date) =>
   a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
 
-// 小月历：左右翻月，点哪天选哪天；今天圈出来，过去的日子置灰
-export function CalendarPicker({ value, onChange }: { value: Date; onChange: (date: Date) => void }) {
+// 小月历：左右翻月，点哪天选哪天；今天圈出来，选不了的日子置灰。
+// 默认只能选今天以后（交作业用）；allowPast 打开后能往前翻，only 可以再限定哪些日子能点（比如只能点周一）
+export function CalendarPicker({ value, onChange, allowPast, only, initialMonth }: {
+  value: Date | null;
+  // 还没选的时候先翻到哪个月，不给就是这个月
+  initialMonth?: Date;
+  onChange: (date: Date) => void;
+  allowPast?: boolean;
+  only?: (date: Date) => boolean;
+}) {
   const { theme } = useTheme();
   const today = new Date();
-  const [month, setMonth] = useState(() => new Date(value.getFullYear(), value.getMonth(), 1));
+  const [month, setMonth] = useState(() => {
+    const at = value ?? initialMonth ?? today;
+    return new Date(at.getFullYear(), at.getMonth(), 1);
+  });
 
-  const isCurrentMonth = month.getFullYear() === today.getFullYear() && month.getMonth() === today.getMonth();
+  const isCurrentMonth = !allowPast && month.getFullYear() === today.getFullYear() && month.getMonth() === today.getMonth();
   // 周一开头：算出这个月 1 号前面要空几格
   const lead = (month.getDay() + 6) % 7;
   const daysInMonth = new Date(month.getFullYear(), month.getMonth() + 1, 0).getDate();
@@ -56,8 +67,8 @@ export function CalendarPicker({ value, onChange }: { value: Date; onChange: (da
         ))}
         {cells.map((d, i) => {
           if (!d) return <View key={`blank-${i}`} style={styles.cell} />;
-          const past = dayDiff(d, today) < 0;
-          const selected = sameDay(d, value);
+          const past = (!allowPast && dayDiff(d, today) < 0) || (only ? !only(d) : false);
+          const selected = !!value && sameDay(d, value);
           const isToday = sameDay(d, today);
           return (
             <View key={d.getDate()} style={styles.cell}>

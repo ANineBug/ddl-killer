@@ -10,7 +10,8 @@ import { scheduleOnRN } from 'react-native-worklets';
 import { haptic } from '@/components/haptic';
 import { TabScreen } from '@/components/TabScreen';
 import { TabScrollView } from '@/components/TabScroll';
-import { Chip, Field, Press, Txt } from '@/components/ui';
+import { CalendarPicker } from '@/components/CalendarPicker';
+import { Chip, Press, Txt } from '@/components/ui';
 import { isoWeekday, weekdayNames } from '@/data/format';
 import { inWeek, sessionWeeks, validMonday, weekFromStart } from '@/data/schedule';
 import { useStore } from '@/data/store';
@@ -34,6 +35,13 @@ function roomOf(location: string) {
   return space > 0 ? location.slice(space + 1) : location;
 }
 
+// 「2026-2027学年第1学期」大概 9 月开学，第 2 学期大概 2 月；月历先翻到那个月
+function termStartGuess(term: string) {
+  const m = /(\d{4})-(\d{4}).*第\s*(\d)\s*学期/.exec(term);
+  if (!m) return undefined;
+  return m[3] === '1' ? new Date(Number(m[1]), 8, 1) : new Date(Number(m[2]), 1, 1);
+}
+
 export default function TimetableScreen() {
   const { timetable } = useStore();
   // 切换学期或修改开学日期时重新选择默认周，避免沿用另一个学期的页面状态。
@@ -54,7 +62,7 @@ function TimetableContent() {
   const { width } = useWindowDimensions();
   const [week, setWeek] = useState(current);
   const [editingStart, setEditingStart] = useState(false);
-  const [draftStart, setDraftStart] = useState(start ?? '');
+  const startDate = start && validMonday(start) ? new Date(`${start}T00:00:00`) : null;
 
   // 一周七天都显示，周末没课也留着位置
   const gridW = Math.min(width - PAD * 2, MAX_W);
@@ -172,17 +180,29 @@ function TimetableContent() {
             <Chip label="未分学期" active={!timetable.term} onPress={() => setTimetable({ term: undefined })} />
           </View>}
 
+          {/* 开学日期：点开一个小月历，只能点周一，点了就存 */}
           {!!timetable.term && <>
-            <Press onPress={() => setEditingStart((v) => !v)} style={{ marginTop: 12 }}>
-              <Txt variant="caption" tone="accent">{start ? `第一周周一：${start} · 修改` : '设置第一周日期，自动计算当前周'}</Txt>
+            <Press onPress={() => setEditingStart((v) => !v)} style={[styles.startRow, { borderColor: theme.line }]}>
+              <Ionicons name="calendar-outline" size={15} color={start ? theme.sub : theme.accent} />
+              <Txt variant="caption" tone={start ? 'sub' : 'accent'}>
+                {startDate ? `第一周 ${startDate.getMonth() + 1} 月 ${startDate.getDate()} 日起` : '选开学第一周'}
+              </Txt>
+              <Ionicons name={editingStart ? 'chevron-up' : 'chevron-down'} size={13} color={theme.faint} />
             </Press>
-            {editingStart && <>
-              <Field label="第一周的周一" placeholder="YYYY-MM-DD" value={draftStart} onChangeText={setDraftStart} />
-              <Chip label="保存日期" active={validMonday(draftStart)} onPress={() => {
-                if (timetable.term && validMonday(draftStart)) setTimetable({ starts: { ...timetable.starts, [timetable.term]: draftStart } });
-              }} />
-              {!!draftStart && !validMonday(draftStart) && <Txt variant="caption" tone="urgent">请填写有效的周一日期</Txt>}
-            </>}
+            {editingStart && (
+              <CalendarPicker
+                value={startDate}
+                initialMonth={termStartGuess(timetable.term)}
+                allowPast
+                only={(d) => d.getDay() === 1}
+                onChange={(d) => {
+                  if (!timetable.term) return;
+                  const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+                  setTimetable({ starts: { ...timetable.starts, [timetable.term]: iso } });
+                  setEditingStart(false);
+                }}
+              />
+            )}
           </>}
 
           <View style={styles.weekRow}>
@@ -222,9 +242,6 @@ function TimetableContent() {
                   <Txt variant="sub" tone="sub">
                     课表还是空的
                   </Txt>
-                  <Txt variant="caption" tone="faint" style={{ marginTop: 6 }}>
-                    从教务导入，或搜索加入同学已经导入的班
-                  </Txt>
                   <Press onPress={() => router.push('/import/swufe')} style={[styles.emptyButton, { borderColor: theme.accent, backgroundColor: theme.accentSoft }]}>
                     <Ionicons name="download-outline" size={16} color={theme.accent} />
                     <Txt variant="sub" tone="accent" style={{ marginLeft: 4 }}>从教务导入</Txt>
@@ -242,11 +259,6 @@ function TimetableContent() {
             </View>
           </GestureDetector>
 
-          {courses.length > 0 && (
-            <Txt variant="caption" tone="faint" style={{ marginTop: 18, textAlign: 'center' }}>
-              {timetable.term ? '同一课程的多个课块共用课程详情和作业' : '右上角可从教务导入课表，或搜索加入教学班'}
-            </Txt>
-          )}
         </View>
       </TabScrollView>
     </TabScreen>
@@ -367,6 +379,7 @@ function WeekGrid({ week, courses, todayCol, colW, periods, theme, canPress }: {
 const styles = StyleSheet.create({
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end' },
   round: { width: 42, height: 42, borderRadius: 21, borderWidth: 1, alignItems: 'center', justifyContent: 'center', marginBottom: 4 },
+  startRow: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', marginTop: 12, paddingHorizontal: 12, height: 32, borderRadius: 999, borderWidth: 1 },
   weekRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: 18, marginBottom: 14 },
   dayPill: { paddingHorizontal: 6, paddingVertical: 3, borderRadius: 999 },
   todayCol: { position: 'absolute', top: 0, bottom: 0, borderRadius: 10 },

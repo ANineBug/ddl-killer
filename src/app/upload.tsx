@@ -1,6 +1,7 @@
+import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet, TextInput, View } from 'react-native';
 
 import { AttachmentEditor, type PendingFile } from '@/components/Attachments';
 import { CalendarPicker } from '@/components/CalendarPicker';
@@ -18,6 +19,8 @@ const times = ['08:00', '12:00', '18:00', '23:59'];
 const methods: SubmitMethod[] = ['纸质', '学习通', '邮箱', '其他'];
 // 作业是从哪听来的，方便大家判断靠不靠谱
 const sources = ['课堂口头', '学习通', '群通知'];
+// 自定义来源最多几个字，和服务器的限制一致
+const SOURCE_MAX = 20;
 
 function dayFromToday(offset: number) {
   const d = new Date();
@@ -57,6 +60,8 @@ export default function Upload() {
   const courses = allCourses.filter((c) => c.id === preset || (timetable.term ? c.source?.term === timetable.term : !c.source));
 
   const [courseId, setCourseId] = useState<string | null>(preset && courses.some((c) => c.id === preset) ? preset : null);
+  // 没带课进来、又有课可选时，直接展开让人选
+  const [courseOpen, setCourseOpen] = useState(!preset && courses.length > 0);
   const [title, setTitle] = useState(editing?.title ?? '');
   const [date, setDate] = useState(() => {
     if (!editing) return dayFromToday(1);
@@ -70,6 +75,8 @@ export default function Upload() {
   const [submit, setSubmit] = useState<SubmitMethod>(editing?.submit ?? '学习通');
   const [detail, setDetail] = useState(editing?.detail ?? '');
   const [source, setSource] = useState(editing?.remote?.source ?? '课堂口头');
+  // 不在三个常用选项里的，就是自己填的来源
+  const [customSource, setCustomSource] = useState(!!editing?.remote && !sources.includes(editing.remote.source));
   // 截止方式：具体时间 / 下次课前（按课表算出下次上课的时间）/ 待定
   const [dueKind, setDueKind] = useState<'at' | 'next_class' | 'tbd'>(editing?.remote?.dueKind ?? 'at');
   const [optional, setOptional] = useState(editing?.remote?.optional ?? false);
@@ -87,7 +94,7 @@ export default function Upload() {
   // 这门课已经有人传过的、还没截止的作业：发布前先看一眼，免得重复传
   const existing = shared && !editing ? homework.filter((h) => h.courseId === courseId && h.remote && h.remote.state !== 'closed' && h.remote.state !== 'cancelled') : [];
 
-  const ready = courseId !== null && title.trim().length > 0 && !(dueKind === 'next_class' && !nextClass);
+  const ready = courseId !== null && title.trim().length > 0 && !(dueKind === 'next_class' && !nextClass) && !(shared && !source.trim());
   const quickDays = nextDays();
   // 选的日期不在最近 7 天里，就是自定义的日期
   const customDate = dayDiff(date) > 6;
@@ -104,7 +111,7 @@ export default function Upload() {
       // 先等服务器收下再关页面；被拒绝（比如新同学今天传满了）就留在这里，内容不丢
       setBusy(true);
       try {
-        const payload = { title: data.title, detail: data.detail, dueKind, due: dueKind === 'tbd' ? null : due, submit, source, optional, groupWork };
+        const payload = { title: data.title, detail: data.detail, dueKind, due: dueKind === 'tbd' ? null : due, submit, source: source.trim(), optional, groupWork };
         let homeworkId: number;
         if (editing?.remote) {
           await online.edit(editing, { ...payload, due: payload.due ? payload.due.toISOString() : null });
@@ -157,11 +164,39 @@ export default function Upload() {
           课表里还没有课，先去「课表」添加课程，才能给它上传作业。
         </Txt>
       )}
-      <ChipGroup label="哪门课">
-        {courses.map((c) => (
-          <Chip key={c.id} label={c.name} active={courseId === c.id} onPress={() => setCourseId(c.id)} />
-        ))}
-      </ChipGroup>
+      {/* 哪门课：平时收起来只显示选中的那门，点开是一列课程，选完自动收起 */}
+      <View style={{ marginTop: 22 }}>
+        <Txt variant="caption" tone="sub" style={{ marginBottom: 8, marginLeft: 4 }}>
+          哪门课
+        </Txt>
+        <Press
+          onPress={() => setCourseOpen((v) => !v)}
+          style={[styles.select, { backgroundColor: theme.card, borderColor: courseOpen ? theme.accent : theme.glass ? theme.cardEdge : theme.line }]}>
+          <Txt variant="sub" tone={course ? 'text' : 'faint'} numberOfLines={1} style={{ flex: 1 }}>
+            {course?.name ?? '选择课程'}
+          </Txt>
+          <Ionicons name={courseOpen ? 'chevron-up' : 'chevron-down'} size={16} color={theme.faint} />
+        </Press>
+        {courseOpen && (
+          <View style={[styles.options, { backgroundColor: theme.card, borderColor: theme.glass ? theme.cardEdge : theme.line }]}>
+            {courses.map((c, i) => (
+              <Press
+                key={c.id}
+                onPress={() => {
+                  setCourseId(c.id);
+                  setCourseOpen(false);
+                }}
+                style={[styles.option, i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.line }]}>
+                <View style={[styles.dot, { backgroundColor: theme.courseHues[c.hue % theme.courseHues.length] }]} />
+                <Txt variant="sub" numberOfLines={1} style={{ flex: 1 }}>
+                  {c.name}
+                </Txt>
+                {courseId === c.id && <Ionicons name="checkmark" size={16} color={theme.accent} />}
+              </Press>
+            ))}
+          </View>
+        )}
+      </View>
 
       <Field label="作业标题" placeholder="比如：习题 3.2" value={title} onChangeText={setTitle} />
 
@@ -269,9 +304,37 @@ export default function Upload() {
       {shared && (
         <ChipGroup label="从哪知道的">
           {sources.map((x) => (
-            <Chip key={x} label={x} active={source === x} onPress={() => setSource(x)} />
+            <Chip
+              key={x}
+              label={x}
+              active={!customSource && source === x}
+              onPress={() => {
+                setSource(x);
+                setCustomSource(false);
+              }}
+            />
           ))}
+          <Chip
+            label="自定义"
+            active={customSource}
+            onPress={() => {
+              if (customSource) return;
+              setCustomSource(true);
+              setSource('');
+            }}
+          />
         </ChipGroup>
+      )}
+      {shared && customSource && (
+        <TextInput
+          autoFocus={!editing}
+          value={source}
+          onChangeText={setSource}
+          maxLength={SOURCE_MAX}
+          placeholder="比如：助教说的、课程群公告"
+          placeholderTextColor={theme.faint}
+          style={[styles.sourceInput, { backgroundColor: theme.card, borderColor: theme.glass ? theme.cardEdge : theme.line, color: theme.text }]}
+        />
       )}
 
       <Field label="要求（可选）" placeholder="页码、题号、格式要求……" value={detail} onChangeText={setDetail} multiline />
@@ -292,6 +355,11 @@ export default function Upload() {
 }
 
 const styles = StyleSheet.create({
+  select: { flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: 1, borderRadius: 14, paddingHorizontal: 14, height: 46 },
+  options: { marginTop: 8, borderWidth: 1, borderRadius: 14, overflow: 'hidden' },
+  option: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, paddingVertical: 12 },
+  dot: { width: 8, height: 8, borderRadius: 4 },
+  sourceInput: { marginTop: 10, borderWidth: 1, borderRadius: 14, paddingHorizontal: 14, height: 44, fontSize: 15, outlineWidth: 0 },
   existing: { marginTop: 18, borderWidth: 1, borderStyle: 'dashed', borderRadius: 14, padding: 12 },
   existingRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 6 },
 });
