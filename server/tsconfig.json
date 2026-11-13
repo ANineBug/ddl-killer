@@ -1,0 +1,17 @@
+{
+  // 服务端直接用 Node 跑 .ts（Node 22.18 起自带去类型），不需要先编译。
+  // 所以只能用"去掉类型就是 JS"的写法：不用 enum、namespace 这些
+  "compilerOptions": {
+    "target": "es2023",
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "allowImportingTsExtensions": true,
+    "erasableSyntaxOnly": true,
+    "verbatimModuleSyntax": true,
+    "noEmit": true,
+    "strict": true,
+    "skipLibCheck": true,
+    "types": ["node"]
+  },
+  "include": ["src", "test"]
+}
