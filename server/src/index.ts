@@ -15,6 +15,7 @@ import { consoleMailer, resendMailer } from './mailer.ts';
 //   SECRET          随机长字符串，给验证码做哈希。服务器上必须填
 //   RESEND_API_KEY  不填就不真发邮件，验证码打印在终端里
 //   MAIL_FROM       发件人，例如 "作业提醒 <noreply@你的域名>"
+//   FEEDBACK_TO     意见反馈发到哪个邮箱，不填就只存在数据库里
 //   PORT            默认 8787
 const env = process.env;
 const production = env.NODE_ENV === 'production';
@@ -32,6 +33,7 @@ const ctx: Ctx = {
   now: () => new Date(),
   mailer: env.RESEND_API_KEY && env.MAIL_FROM ? resendMailer(env.RESEND_API_KEY, env.MAIL_FROM) : consoleMailer(),
   secret: env.SECRET ?? 'dev-secret-only-for-local',
+  feedbackTo: env.FEEDBACK_TO || undefined,
 };
 
 const app = createApp(ctx);

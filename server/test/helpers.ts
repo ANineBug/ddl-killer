@@ -7,12 +7,13 @@ export async function setup() {
   const db = await pglite();
   await migrate(db);
   let t = new Date('2026-09-14T02:00:00Z').getTime(); // 第三周周一上午（北京时间 10 点）
-  const mails: { to: string; text: string }[] = [];
+  const mails: { to: string; subject: string; text: string }[] = [];
   const ctx: Ctx = {
     db,
     now: () => new Date(t),
-    mailer: { send: async (to, _s, text) => void mails.push({ to, text }) },
+    mailer: { send: async (to, subject, text) => void mails.push({ to, subject, text }) },
     secret: 'test',
+    feedbackTo: 'dev@example.com',
   };
   const app = createApp(ctx);
 

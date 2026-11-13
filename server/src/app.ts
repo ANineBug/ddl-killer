@@ -10,6 +10,7 @@ import { classBoard, globalBoard } from './board.ts';
 import { adminDeleteMessage, listMessages, MessageIn, sendMessage } from './chat.ts';
 import { getClass, ImportIn, importTimetable, joinClass, leaveClass, myClasses, resolveTimetable, searchClasses } from './classes.ts';
 import { type Ctx, forbidden, HttpError, type User } from './context.ts';
+import { FeedbackIn, sendFeedback } from './feedback.ts';
 import {
   adminDeleteHomework,
   adoptProposal,
@@ -141,6 +142,12 @@ export function createApp(ctx: Ctx) {
     // 地址里带着版本号，换头像地址就变，所以可以放心让手机缓存很久
     return c.body(a.data as Uint8Array<ArrayBuffer>, 200, { 'Content-Type': a.mime, 'Cache-Control': 'public, max-age=31536000, immutable' });
   });
+  // 意见反馈：登录后才能发，免得被人刷
+  app.post('/feedback', async (c) => {
+    const u = need(c);
+    return c.json(await sendFeedback(ctx, u, await body(c, FeedbackIn)), 201);
+  });
+
   app.patch('/me', async (c) => {
     const u = need(c);
     // 改昵称、开关邮件提醒，都可以只传其中一样

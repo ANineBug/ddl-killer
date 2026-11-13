@@ -8,6 +8,8 @@ export type Ctx = {
   mailer: Mailer;
   // 给验证码做哈希用的密钥，服务器上从环境变量读
   secret: string;
+  // 意见反馈发到这个邮箱；不填就只存库
+  feedbackTo?: string;
 };
 
 // 接口出错统一抛这个，status 是 HTTP 状态码，code 给 app 判断用，message 直接给用户看

@@ -80,6 +80,7 @@ test/                     测试，按业务场景写的，可以当规则说明
 | POST | `/auth/reset` | 所有人 | 找回密码 `{ email, code, password }`，返回新凭证；别的设备全部登出 |
 | POST | `/auth/logout` | 登录 | 退出 |
 | GET / PATCH | `/me` | 登录 | 我的信息和加入的班 / 改昵称 |
+| POST | `/feedback` | 登录 | 意见反馈（问题 / 建议 / 其他），每人每天最多 5 条 |
 | POST | `/me/import` | 登录 | 导入教务课表 `{ term, courses }` |
 | PUT / DELETE | `/me/avatar` | 登录 | 上传头像（请求体就是图片，JPG/PNG/WebP，最大 2MB）/ 删掉头像 |
 | GET | `/avatars/:id?v=` | 所有人 | 取头像图片。返回里的每个人都带 `avatar` 地址，没传过是 `null` |
@@ -126,6 +127,7 @@ DATABASE_URL=postgres://用户名:密码@localhost:5432/homework
 SECRET=一串随机的长字符串
 RESEND_API_KEY=re_xxx
 MAIL_FROM=作业提醒 <noreply@你的域名>
+FEEDBACK_TO=开发者收反馈的邮箱（选填，不填就只存数据库）
 PORT=8787
 ```
 
