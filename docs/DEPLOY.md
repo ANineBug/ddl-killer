@@ -6,13 +6,11 @@
 
 | 东西 | 在仓库哪里 | 部署后在哪 |
 |---|---|---|
-| 后端（Node + PostgreSQL） | `feat/backend` 分支的 `server/` | `https://ninebug.xyz/v1/...` |
-| 产品网站（纯静态页面） | `feat/app-online` 分支的 `site/` | `https://ninebug.xyz` |
+| 后端（Node + PostgreSQL） | `main` 分支的 `server/` | `https://ninebug.xyz/v1/...` |
+| 产品网站（纯静态页面） | `main` 分支的 `site/` | `https://ninebug.xyz` |
 | 发验证码、邮件提醒 | Resend | 发件人 `DDL斩 <noreply@mail.ninebug.xyz>` |
 
 一台服务器。主域名 `ninebug.xyz` 放产品网站和后端（`www.ninebug.xyz` 自动跳到主域名），副域名 `mail.ninebug.xyz` 只用来发信，不指向服务器。Caddy 负责 https 证书（自动申请、自动续期），按路径分流：`/v1/*` 转给后端的 8787 端口，其余的当静态网站。
-
-> 现在后端和 app 还在两个分支上，没合进 main。下面先按两个分支部署；合进 main 以后，把两处 `git clone -b ...` 换成同一个 main 就行（见第 11 节）。
 
 **服务器要求**：Ubuntu 24.04（Debian 12 也行），1 核 1G 够用，能用 root 或带 sudo 的账号 SSH 登录。
 
@@ -124,9 +122,9 @@ sudo -u postgres psql -c "create database ddl owner ddl;"
 ```bash
 sudo mkdir -p /opt/ddl-killer && sudo chown ddl:ddl /opt/ddl-killer
 # 后端
-sudo -u ddl git clone -b feat/backend https://github.com/ANineBug/ddl-killer.git /opt/ddl-killer/backend
+sudo -u ddl git clone -b main https://github.com/ANineBug/ddl-killer.git /opt/ddl-killer/backend
 # 网站（只需要里面的 site/ 文件夹）
-sudo -u ddl git clone -b feat/app-online --depth 1 https://github.com/ANineBug/ddl-killer.git /opt/ddl-killer/web
+sudo -u ddl git clone -b main --depth 1 https://github.com/ANineBug/ddl-killer.git /opt/ddl-killer/web
 
 cd /opt/ddl-killer/backend/server
 sudo -u ddl npm ci --omit=dev
@@ -280,7 +278,7 @@ EOF
 1. GitHub 仓库 → Settings → Secrets and variables → Actions → **Variables**（不是 Secrets，因为这是公开地址）→ New repository variable：
    - Name：`EXPO_PUBLIC_API_URL`
    - Value：`https://ninebug.xyz`
-2. Actions → 打包安卓 APK → Run workflow，分支选 `feat/app-online`
+2. Actions → 打包安卓 APK → Run workflow，分支选 `main`
 3. 打完在这次运行的页面底部下载 `ddl-killer-apk`
 
 **正式签名**：密钥文件 `ddl-killer-release.p12` 和密码由项目负责人自己保管（不在仓库里），打包时从仓库的 Secrets 读：
@@ -306,16 +304,11 @@ cd /opt/ddl-killer/backend && sudo -u ddl git pull
 cd server && sudo -u ddl npm ci --omit=dev
 sudo systemctl restart ddl-killer   # 启动时会自动跑新的数据库迁移
 
-# 网站
-cd /opt/ddl-killer/web && sudo -u ddl git pull
+# 网站（浅克隆，只取最新一版）
+cd /opt/ddl-killer/web && sudo -u ddl git fetch --depth 1 origin main && sudo -u ddl git reset --hard FETCH_HEAD
 ```
 
-分支合进 main 以后：
-
-```bash
-cd /opt/ddl-killer/backend && sudo -u ddl git fetch && sudo -u ddl git checkout main && sudo -u ddl git pull
-cd /opt/ddl-killer/web && sudo -u ddl git fetch --depth 1 origin main && sudo -u ddl git checkout -B main FETCH_HEAD
-```
+更新前最好先备份一次数据库：`sudo -u postgres pg_dump -Fc ddl > /var/backups/ddl/ddl-before-xxx.dump`。
 
 常用的排查命令：
 
