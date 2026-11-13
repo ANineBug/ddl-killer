@@ -245,6 +245,7 @@ export default function MeScreen() {
           <Card>
             <NavRow label="每节课几点上课" onPress={() => router.push('/class-times')} />
             <NavRow label="关于提醒" onPress={() => router.push('/reminder-notice')} divider />
+            <NavRow label="意见反馈" onPress={() => router.push('/feedback')} divider />
           </Card>
         </Section>
 

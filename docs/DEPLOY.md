@@ -146,6 +146,7 @@ EOF
 sudo chmod 600 /opt/ddl-killer/backend/server/.env
 ```
 
+- 选填 `FEEDBACK_TO=你的邮箱`：app 里「意见反馈」会发到这个邮箱。不填的话反馈只存在数据库的 `feedback` 表里。
 - `SECRET` 用来给验证码做哈希，**生成一次以后不要改**，改了的话正在用的验证码会失效。
 - 这四项缺一个，后端在正式环境下会直接拒绝启动并打印缺了什么。
 

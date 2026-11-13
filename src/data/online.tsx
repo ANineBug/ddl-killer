@@ -109,6 +109,13 @@ export function useOnline() {
     setAccount(null);
   }, [setAccount]);
 
+  // 意见反馈：直接发给开发者，带上版本号和系统，方便排查
+  const feedback = useCallback(
+    (data: { kind: 'bug' | 'idea' | 'other'; text: string; contact: string; appVersion: string; platform: string }) =>
+      api<{ id: number }>('/feedback', { method: 'POST', body: data }),
+    [],
+  );
+
   const rename = useCallback(
     async (nickname: string) => {
       if (!account) return;
@@ -310,7 +317,7 @@ export function useOnline() {
     [account, addJoinedCourse, sync, timetable.term, setTimetable],
   );
 
-  return { loggedIn: !!account, account, link, sync, refresh, requestCode, login, register, resetPassword, logout, rename, me, upload, edit, remove, attach, detach, reload, react, detail, propose, vote, adopt, withdraw, voteDuplicate, messages, send, classBoard, globalBoard, setAvatar, leave, search, join };
+  return { loggedIn: !!account, account, link, sync, refresh, requestCode, login, register, resetPassword, logout, rename, feedback, me, upload, edit, remove, attach, detach, reload, react, detail, propose, vote, adopt, withdraw, voteDuplicate, messages, send, classBoard, globalBoard, setAvatar, leave, search, join };
 }
 
 export { ApiError, localHomeworkId };
