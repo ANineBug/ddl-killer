@@ -1,15 +1,32 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createContext, ReactNode, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 
-import { mockCourses, mockHomework } from './mock';
+import { setToken } from '@/api/client';
+import type { UserRef } from '@/api/types';
+
 import { Course, Homework, Profile, ReactionKey, Reminder, Settings, TimetableSettings } from './types';
+import { isArchived } from './archive';
+import { dropDemo } from './legacy';
 import { mergeImportedCourses, migrateCourse } from './schedule';
 import { createPersistence } from './persistence';
 
 export type NewHomework = Pick<Homework, 'courseId' | 'title' | 'detail' | 'due' | 'submit' | 'hasPhoto'>;
 export type NewCourse = Omit<Course, 'id' | 'hue' | 'members'>;
 
+// 登录后的账号：凭证和服务器上的我
+export type Account = { token: string; user: UserRef };
+
 type StoreValue = {
+  account: Account | null;
+  setAccount: (a: Account | null) => void;
+  // 给课挂上服务器教学班编号：{ 课的 id: 教学班编号 }
+  linkCourses: (links: Record<string, number>) => void;
+  // 用服务器上最新的作业替换这几门课的服务器作业；只在手机上的作业不动
+  replaceRemote: (courseIds: string[], items: Homework[]) => void;
+  // 更新或加入一条服务器作业（上传、确认、改完以后用接口返回的最新内容）
+  upsertRemote: (item: Homework) => void;
+  // 手动加入教学班后，把这门课加进课表
+  addJoinedCourse: (c: Course) => void;
   courses: Course[];
   homework: Homework[];
   profile: Profile;
@@ -19,7 +36,12 @@ type StoreValue = {
   importCourses: (courses: Course[], term: string, start?: string) => Promise<{ added: number; updated: number; undo: () => void }>;
   courseById: (id: string) => Course | undefined;
   toggleDone: (id: string) => void;
+  toggleIgnored: (id: string) => void;
+  // 归档 / 移回：传 { 作业 id: true 归档 | false 移回 | undefined 交给自动规则 }。撤销时把原来的值传回去
+  setArchived: (changes: Record<string, boolean | undefined>) => void;
   toggleReaction: (id: string, key: ReactionKey) => void;
+  // 对"这几条是不是同一份作业"投票；再点一次同样的就是撤回
+  voteDuplicate: (id: string, agree: boolean) => void;
   // 传 undefined 表示恢复默认提醒
   setReminders: (id: string, reminders: Reminder[] | undefined) => void;
   addHomework: (h: NewHomework) => Homework;
@@ -34,11 +56,11 @@ type StoreValue = {
   restoreCourse: (removed: { course: Course; homework: Homework[] }) => void;
   setProfile: (p: Partial<Profile>) => void;
   setSettings: (s: Partial<Settings>) => void;
-  // 清掉手机上保存的数据，回到演示数据
-  resetDemo: () => void;
 };
 
 const STORE_KEY = 'store.v1';
+// 登录凭证单独存
+const AUTH_KEY = 'auth.v1';
 
 const defaultProfile: Profile = { nickname: '游客', avatarHue: 0 };
 const defaultSettings: Settings = { remindDay: true, remindHours: true, quietNight: true };
@@ -52,30 +74,52 @@ const reviveDates = (_key: string, value: unknown) =>
 
 const StoreContext = createContext<StoreValue | null>(null);
 
+// 同一条作业从服务器拿到新内容时，这些只存在手机上的东西要接着用
+const localOnly = (h: Homework) => ({
+  done: h.done,
+  doneAt: h.doneAt,
+  reminders: h.reminders,
+  dupVote: h.dupVote,
+  ignored: h.ignored,
+  archived: h.archived,
+});
+
 let seq = 0;
 const newId = (prefix: string) => `${prefix}-${Date.now()}-${seq++}`;
 
 // 所有数据都放在这里；每次改动后自动存到手机上，下次打开接着用
 export function StoreProvider({ children }: { children: ReactNode }) {
   const [ready, setReady] = useState(false);
-  const [courses, setCourses] = useState<Course[]>(() => mockCourses.map(migrateCourse));
-  const [homework, setHomework] = useState<Homework[]>(mockHomework);
+  // 新同学从空白开始：先导入课表或加入教学班
+  const [courses, setCourses] = useState<Course[]>([]);
+  const [homework, setHomework] = useState<Homework[]>([]);
   const [profile, setProfileState] = useState<Profile>(defaultProfile);
   const [settings, setSettingsState] = useState<Settings>(defaultSettings);
   const [timetable, setTimetableState] = useState<TimetableSettings>({ starts: {} });
+  const [account, setAccountState] = useState<Account | null>(null);
   const homeworkRef = useRef(homework);
   useLayoutEffect(() => { homeworkRef.current = homework; }, [homework]);
   const persistence = useMemo(() => createPersistence(AsyncStorage, STORE_KEY), []);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
-  // 打开 app 时先读出上次保存的数据；第一次打开没有保存过，就用演示数据
+  // 打开 app 时先读出上次保存的数据；第一次打开没有保存过，就是空的
   useEffect(() => {
-    AsyncStorage.getItem(STORE_KEY)
+    // 先读登录状态，再读数据；两个都读完才画界面
+    AsyncStorage.getItem(AUTH_KEY)
+      .then((raw) => {
+        if (!raw) return;
+        const a = JSON.parse(raw) as Account;
+        setToken(a.token);
+        setAccountState(a);
+      })
+      .catch(() => {})
+      .then(() => AsyncStorage.getItem(STORE_KEY))
       .then((raw) => {
         if (!raw) return;
         const saved = JSON.parse(raw, reviveDates) as Partial<Saved>;
-        if (saved.courses) setCourses(saved.courses.map(migrateCourse));
-        if (saved.homework) setHomework(saved.homework);
+        const kept = dropDemo((saved.courses ?? []).map(migrateCourse), saved.homework ?? []);
+        setCourses(kept.courses);
+        setHomework(kept.homework);
         if (saved.profile) setProfileState({ ...defaultProfile, ...saved.profile });
         if (saved.settings) setSettingsState({ ...defaultSettings, ...saved.settings });
         if (saved.timetable) setTimetableState({ ...saved.timetable, starts: saved.timetable.starts ?? {} });
@@ -96,8 +140,58 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const courseById = useCallback((id: string) => courses.find((c) => c.id === id), [courses]);
 
+  const setAccount = useCallback((a: Account | null) => {
+    setToken(a?.token ?? null);
+    setAccountState(a);
+    (a ? AsyncStorage.setItem(AUTH_KEY, JSON.stringify(a)) : AsyncStorage.removeItem(AUTH_KEY)).catch(() => {});
+  }, []);
+
+  const linkCourses = useCallback((links: Record<string, number>) => {
+    setCourses((list) => list.map((c) => (links[c.id] !== undefined && c.serverClassId !== links[c.id] ? { ...c, serverClassId: links[c.id] } : c)));
+  }, []);
+
+  const replaceRemote = useCallback((courseIds: string[], items: Homework[]) => {
+    setHomework((list) => {
+      const old = new Map(list.filter((h) => h.remote).map((h) => [h.id, h]));
+      const now = new Date();
+      // 服务器只返回截止一个月以内的作业。已经归档的老作业服务器不再给了，手机上要留着，随时还能点开看
+      const keep = list.filter(
+        (h) => (!(h.remote && courseIds.includes(h.courseId)) || isArchived(h, now)) && !items.some((x) => x.id === h.id),
+      );
+      // 完成状态、自己设的提醒、归档这些只存在手机上，换成新内容时接着用
+      const fresh = items.map((x) => {
+        const prev = old.get(x.id);
+        return prev ? { ...x, ...localOnly(prev) } : x;
+      });
+      return [...fresh, ...keep];
+    });
+  }, []);
+
+  const upsertRemote = useCallback((item: Homework) => {
+    setHomework((list) => {
+      const prev = list.find((h) => h.id === item.id);
+      const next = prev ? { ...item, ...localOnly(prev) } : item;
+      return prev ? list.map((h) => (h.id === item.id ? next : h)) : [next, ...list];
+    });
+  }, []);
+
+  const addJoinedCourse = useCallback((c: Course) => {
+    setCourses((list) => (list.some((x) => x.serverClassId === c.serverClassId) ? list : [...list, { ...c, hue: list.length % 5 }]));
+  }, []);
+
+  // 打勾记下时间；取消完成就清掉时间，也从归档里拿出来（回到首页待完成）
   const toggleDone = useCallback((id: string) => {
-    setHomework((list) => list.map((h) => (h.id === id ? { ...h, done: !h.done } : h)));
+    setHomework((list) =>
+      list.map((h) => (h.id !== id ? h : h.done ? { ...h, done: false, doneAt: undefined, archived: undefined } : { ...h, done: true, doneAt: new Date() })),
+    );
+  }, []);
+
+  const toggleIgnored = useCallback((id: string) => {
+    setHomework((list) => list.map((h) => (h.id !== id ? h : h.ignored ? { ...h, ignored: false, archived: h.done ? h.archived : undefined } : { ...h, ignored: true })));
+  }, []);
+
+  const setArchived = useCallback((changes: Record<string, boolean | undefined>) => {
+    setHomework((list) => list.map((h) => (h.id in changes ? { ...h, archived: changes[h.id] } : h)));
   }, []);
 
   const toggleReaction = useCallback((id: string, key: ReactionKey) => {
@@ -112,6 +206,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         };
       }),
     );
+  }, []);
+
+  // 现在只记在手机上；接上后端后改成调用投票接口，够人数由服务器合并
+  const voteDuplicate = useCallback((id: string, agree: boolean) => {
+    setHomework((list) => list.map((h) => (h.id === id ? { ...h, dupVote: h.dupVote === agree ? undefined : agree } : h)));
   }, []);
 
   const setReminders = useCallback((id: string, reminders: Reminder[] | undefined) => {
@@ -153,7 +252,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setHomework((list) => (list.some((x) => x.id === h.id) ? list : [h, ...list]));
   }, []);
 
-  // 演示版匹配：时间和地点完全一样就算同一个教学班，不处理写法差异
+  // 手动加课时的本机匹配：时间和地点完全一样就算同一个教学班，不处理写法差异
   const addCourse = useCallback(
     (c: NewCourse) => {
       const s = c.sessions[0];
@@ -178,9 +277,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     (id: string) => {
       const course = courses.find((c) => c.id === id);
       if (!course) return undefined;
-      const related = homework.filter((h) => h.courseId === id);
+      const now = new Date();
+      // 归档里的作业是「完成记录」，课删了也留着，记下课名
+      const related = homework.filter((h) => h.courseId === id && !isArchived(h, now));
       setCourses((list) => list.filter((c) => c.id !== id));
-      setHomework((list) => list.filter((h) => h.courseId !== id));
+      setHomework((list) =>
+        list.flatMap((h) => (h.courseId !== id ? [h] : isArchived(h, now) ? [{ ...h, courseName: course.name }] : [])),
+      );
       return { course, homework: related };
     },
     [courses, homework],
@@ -223,16 +326,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     };
   }, [courses, timetable, homework, profile, settings, persistence]);
 
-  const resetDemo = useCallback(() => {
-    setCourses(mockCourses.map(migrateCourse));
-    setHomework(mockHomework);
-    setProfileState(defaultProfile);
-    setSettingsState(defaultSettings);
-    setTimetableState({ starts: {} });
-  }, []);
-
   const value = useMemo(
     () => ({
+      account,
+      setAccount,
+      linkCourses,
+      replaceRemote,
+      upsertRemote,
+      addJoinedCourse,
       courses,
       homework,
       profile,
@@ -242,7 +343,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       importCourses,
       courseById,
       toggleDone,
+      toggleIgnored,
+      setArchived,
       toggleReaction,
+      voteDuplicate,
       setReminders,
       addHomework,
       updateHomework,
@@ -254,9 +358,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       restoreCourse,
       setProfile,
       setSettings,
-      resetDemo,
     }),
     [
+      account,
+      setAccount,
+      linkCourses,
+      replaceRemote,
+      upsertRemote,
+      addJoinedCourse,
       courses,
       homework,
       profile,
@@ -266,7 +375,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       importCourses,
       courseById,
       toggleDone,
+      toggleIgnored,
+      setArchived,
       toggleReaction,
+      voteDuplicate,
       setReminders,
       addHomework,
       updateHomework,
@@ -278,11 +390,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       restoreCourse,
       setProfile,
       setSettings,
-      resetDemo,
     ],
   );
 
-  // 读完保存的数据之前先不画界面，免得先闪一下演示数据
+  // 读完保存的数据之前先不画界面，免得先闪一下空页面
   if (!ready) return null;
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;

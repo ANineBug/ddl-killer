@@ -1,23 +1,76 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useState } from 'react';
-import { Platform, StyleSheet, Switch, TextInput, View } from 'react-native';
+import { router } from 'expo-router';
+import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
+import * as ImagePicker from 'expo-image-picker';
+import { useEffect, useState } from 'react';
+import { ActivityIndicator, Platform, StyleSheet, Switch, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import type { MyClass } from '@/api/types';
+// 版本号直接读 app.json，网页预览里 expo-constants 给的不准
+import appJson from '../../../app.json';
+import { Avatar } from '@/components/Avatar';
 import { haptic } from '@/components/haptic';
+import { useToast } from '@/components/Toast';
 import { TabScreen } from '@/components/TabScreen';
 import { TabScrollView } from '@/components/TabScroll';
 import { Card, Press, Section, Txt } from '@/components/ui';
+import { completionStats, isArchived } from '@/data/archive';
+import { TIER_NAMES } from '@/data/labels';
+import { errorText, useOnline } from '@/data/online';
 import { useStore } from '@/data/store';
 import { fonts, ThemeName, themeNames, themes } from '@/theme/tokens';
 import { useTheme } from '@/theme/useTheme';
 
+
 export default function MeScreen() {
   const { theme } = useTheme();
-  const { profile, setProfile, homework, settings, setSettings, resetDemo } = useStore();
+  const { profile, setProfile, homework, settings, setSettings } = useStore();
+  const record = completionStats(homework, new Date());
+  const archivedCount = homework.filter((h) => isArchived(h, new Date())).length;
   const insets = useSafeAreaInsets();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(profile.nickname);
-  const [confirmReset, setConfirmReset] = useState(false);
+  const online = useOnline();
+  const toast = useToast();
+  // 登录了就用服务器上的昵称
+  const nickname = online.account?.user.nickname ?? profile.nickname;
+  const [mine, setMine] = useState<MyClass[] | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [classesOpen, setClassesOpen] = useState(false);
+
+  // 登录后拉一次"我在每个班的档位和贡献值"
+  const token = online.account?.token;
+  useEffect(() => {
+    if (!token) return setMine(null);
+    online
+      .me()
+      .then((m) => setMine(m.classes))
+      .catch(() => setMine([]));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token]);
+
+  // 换头像：选一张图、裁成正方形，压到 512 像素的 JPG 再传，一般只有几十 KB
+  async function pickAvatar() {
+    if (uploading) return;
+    const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: 'images', allowsEditing: true, aspect: [1, 1], quality: 1 });
+    if (res.canceled || !res.assets[0]) return;
+    const asset = res.assets[0];
+    setUploading(true);
+    try {
+      const ctx = ImageManipulator.manipulate(asset.uri);
+      if ((asset.width ?? 0) > 512) ctx.resize({ width: 512 });
+      const image = await ctx.renderAsync();
+      const out = await image.saveAsync({ compress: 0.8, format: SaveFormat.JPEG });
+      await online.setAvatar(out.uri, 'image/jpeg');
+      haptic.success();
+      toast('头像换好了');
+    } catch (e) {
+      toast(errorText(e));
+    } finally {
+      setUploading(false);
+    }
+  }
 
   const uploaded = homework.filter((h) => h.mine).length;
   const confirmed = homework.filter((h) => h.myReactions.includes('confirm')).length;
@@ -26,9 +79,18 @@ export default function MeScreen() {
 
   function saveName() {
     const name = draft.trim();
-    if (name) setProfile({ nickname: name });
-    else setDraft(profile.nickname);
     setEditing(false);
+    if (!name || name === nickname) {
+      setDraft(nickname);
+      return;
+    }
+    setProfile({ nickname: name });
+    if (online.loggedIn) {
+      online.rename(name).catch((e) => {
+        toast(errorText(e));
+        setDraft(nickname);
+      });
+    }
   }
 
   return (
@@ -40,13 +102,23 @@ export default function MeScreen() {
         <Txt variant="display">我的</Txt>
 
         <Card style={styles.profile}>
-          <Press
-            onPress={() => setProfile({ avatarHue: profile.avatarHue + 1 })}
-            style={[styles.avatar, { backgroundColor: hue }]}>
-            <Txt style={{ fontFamily: fonts.serif, fontSize: 24, color: '#ffffff', fontWeight: '600' }}>
-              {profile.nickname.slice(0, 1)}
-            </Txt>
-          </Press>
+          {online.account ? (
+            // 登录后点头像换图片；游客点头像只换颜色
+            <Press onPress={pickAvatar}>
+              <Avatar user={online.account.user} size={56} />
+              <View style={[styles.camera, { backgroundColor: theme.text }]}>
+                {uploading ? <ActivityIndicator size="small" color={theme.onText} /> : <Ionicons name="camera" size={11} color={theme.onText} />}
+              </View>
+            </Press>
+          ) : (
+            <Press
+              onPress={() => setProfile({ avatarHue: profile.avatarHue + 1 })}
+              style={[styles.avatar, { backgroundColor: hue }]}>
+              <Txt style={{ fontFamily: fonts.serif, fontSize: 24, color: '#ffffff', fontWeight: '600' }}>
+                {nickname.slice(0, 1)}
+              </Txt>
+            </Press>
+          )}
           <View style={{ flex: 1, marginLeft: 14 }}>
             {editing ? (
               <TextInput
@@ -59,15 +131,29 @@ export default function MeScreen() {
                 style={[styles.nameInput, { color: theme.text, borderBottomColor: theme.accent }]}
               />
             ) : (
-              <Press onPress={() => setEditing(true)} style={{ flexDirection: 'row', alignItems: 'center' }}>
-                <Txt variant="title">{profile.nickname}</Txt>
+              <Press
+                onPress={() => {
+                  setDraft(nickname);
+                  setEditing(true);
+                }}
+                style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <Txt variant="title">{nickname}</Txt>
                 <Ionicons name="pencil" size={14} color={theme.faint} style={{ marginLeft: 8 }} />
               </Press>
             )}
-            <Txt variant="caption" tone="sub" style={{ marginTop: 4 }}>
-              游客模式 · 点头像换颜色，点名字改昵称
-            </Txt>
+            {!online.loggedIn && (
+              <Txt variant="caption" tone="sub" style={{ marginTop: 4 }}>
+                游客 · 登录后才能上传和确认
+              </Txt>
+            )}
           </View>
+          {!online.loggedIn && (
+            <Press onPress={() => router.push('/login')} style={[styles.login, { borderColor: theme.accent, backgroundColor: theme.accentSoft }]}>
+              <Txt variant="sub" tone="accent" style={{ fontWeight: '600' }}>
+                登录
+              </Txt>
+            </Press>
+          )}
         </Card>
 
         <View style={styles.stats}>
@@ -76,13 +162,71 @@ export default function MeScreen() {
           <Stat value={confirmed} label="我确认的" />
         </View>
 
+        {/* 完成记录：完成多少、按时率、归档了多少，点进去看小结和归档的作业 */}
+        <Section title="完成记录">
+          <Press onPress={() => router.push('/archive')}>
+            <Card style={{ paddingVertical: 14, paddingHorizontal: 16 }}>
+              <View style={{ flexDirection: 'row' }}>
+                <RecordNumber value={String(record.total)} label="完成的作业" />
+                <RecordNumber value={record.onTime === null ? '—' : `${Math.round(record.onTime * 100)}%`} label="按时交" />
+                <RecordNumber value={String(archivedCount)} label="已归档" />
+              </View>
+              <Txt variant="caption" tone="accent" style={{ marginTop: 10 }}>
+                看完成记录和归档 ›
+              </Txt>
+            </Card>
+          </Press>
+        </Section>
+
         <Section title="外观">
           <View style={styles.themes}>
-            {(['dusk', 'paper'] as ThemeName[]).map((n) => (
+            {/* 纸页是默认主题，排在前面 */}
+            {(['paper', 'dusk'] as ThemeName[]).map((n) => (
               <ThemeOption key={n} name={n} />
             ))}
           </View>
         </Section>
+
+        {/* 我的贡献：总分榜一行，各班档位收起来，班多了也不占地方 */}
+        {online.loggedIn && (
+          <Section title="我的贡献">
+            <Card>
+              <NavRow label="总分榜" onPress={() => router.push('/board')} />
+              <Press
+                onPress={() => {
+                  haptic.select();
+                  setClassesOpen((v) => !v);
+                }}
+                style={[styles.row, { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.line }]}>
+                <Txt variant="sub" style={{ flex: 1 }}>
+                  各班档位
+                </Txt>
+                {mine === null ? (
+                  <ActivityIndicator size="small" />
+                ) : (
+                  <Txt variant="caption" tone="sub">
+                    {mine.length} 个班
+                  </Txt>
+                )}
+                <Ionicons name={classesOpen ? 'chevron-up' : 'chevron-down'} size={15} color={theme.faint} />
+              </Press>
+              {classesOpen &&
+                mine?.map((c) => (
+                  <Press
+                    key={c.id}
+                    onPress={() => router.push(`/board?classId=${c.id}`)}
+                    style={[styles.row, styles.subRow, { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.line }]}>
+                    <Txt variant="sub" tone="sub" numberOfLines={1} style={{ flex: 1 }}>
+                      {c.name}
+                    </Txt>
+                    <Txt variant="caption" tone="sub">
+                      {TIER_NAMES[c.myTier]} · {c.myScore} 分 ›
+                    </Txt>
+                  </Press>
+                ))}
+            </Card>
+          </Section>
+        )}
 
         <Section title="提醒">
           <Card>
@@ -95,42 +239,32 @@ export default function MeScreen() {
               last
             />
           </Card>
-          <Txt variant="caption" tone="faint" style={{ marginTop: 8, marginLeft: 4 }}>
-            每条作业默认按这里提醒，也可以在作业详情里单独调整
-          </Txt>
         </Section>
 
-        <Section title="第二期">
-          <Card style={{ padding: 16 }}>
-            <Txt variant="sub" tone="sub" style={{ lineHeight: 20 }}>
-              贡献值、签到、排行榜、打赏、聊天气泡、小论坛，正在路上。
-            </Txt>
+        <Section title="更多">
+          <Card>
+            <NavRow label="每节课几点上课" onPress={() => router.push('/class-times')} />
+            <NavRow label="关于提醒" onPress={() => router.push('/reminder-notice')} divider />
+            <NavRow label="意见反馈" onPress={() => router.push('/feedback')} divider />
           </Card>
         </Section>
 
         <Txt variant="caption" tone="faint" style={{ textAlign: 'center', marginTop: 26 }}>
-          版本 0.1 · 数据保存在这台手机上
+          DDL斩 {appJson.expo.version}
         </Txt>
-        {/* 点一次变成确认文字，3 秒内再点一次才真正重置 */}
-        <Press
-          hitSlop={8}
-          style={{ alignSelf: 'center', marginTop: 10 }}
-          onPress={() => {
-            if (!confirmReset) {
+        {online.loggedIn && (
+          <Press
+            hitSlop={8}
+            style={{ alignSelf: 'center', marginTop: 10 }}
+            onPress={() => {
               haptic.select();
-              setConfirmReset(true);
-              setTimeout(() => setConfirmReset(false), 3000);
-              return;
-            }
-            haptic.success();
-            setConfirmReset(false);
-            resetDemo();
-            setDraft('游客');
-          }}>
-          <Txt variant="caption" tone={confirmReset ? 'urgent' : 'faint'} style={{ textDecorationLine: 'underline' }}>
-            {confirmReset ? '再点一次，清空我的数据并恢复演示数据' : '恢复演示数据'}
-          </Txt>
-        </Press>
+              online.logout().then(() => toast('已退出登录'));
+            }}>
+            <Txt variant="caption" tone="faint" style={{ textDecorationLine: 'underline' }}>
+              退出登录
+            </Txt>
+          </Press>
+        )}
       </TabScrollView>
     </TabScreen>
   );
@@ -168,6 +302,19 @@ function ThemeOption({ name }: { name: ThemeName }) {
   );
 }
 
+// 一行可以点进去的设置项：左边名字，右边箭头
+function NavRow({ label, onPress, divider }: { label: string; onPress: () => void; divider?: boolean }) {
+  const { theme } = useTheme();
+  return (
+    <Press onPress={onPress} style={[styles.row, divider && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.line }]}>
+      <Txt variant="sub" style={{ flex: 1 }}>
+        {label}
+      </Txt>
+      <Ionicons name="chevron-forward" size={15} color={theme.faint} />
+    </Press>
+  );
+}
+
 function Stat({ value, label }: { value: number; label: string }) {
   return (
     <Card style={styles.stat}>
@@ -198,6 +345,10 @@ function ToggleRow({ label, value, onChange, last }: { label: string; value: boo
 
 const styles = StyleSheet.create({
   profile: { flexDirection: 'row', alignItems: 'center', padding: 16, marginTop: 20 },
+  camera: { position: 'absolute', right: -2, bottom: -2, width: 20, height: 20, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 13, paddingHorizontal: 16 },
+  subRow: { paddingVertical: 11, paddingLeft: 28 },
+  login: { paddingHorizontal: 16, paddingVertical: 7, borderRadius: 999, borderWidth: 1, marginLeft: 10 },
   avatar: { width: 56, height: 56, borderRadius: 28, alignItems: 'center', justifyContent: 'center' },
   nameInput: { fontSize: 20, fontWeight: '600', borderBottomWidth: 1, paddingVertical: 2 },
   stats: { flexDirection: 'row', gap: 10, marginTop: 12 },
@@ -218,3 +369,16 @@ const styles = StyleSheet.create({
   swatchLine: { height: 5, borderRadius: 3 },
   themeLabel: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, paddingVertical: 10 },
 });
+
+function RecordNumber({ value, label }: { value: string; label: string }) {
+  return (
+    <View style={{ flex: 1 }}>
+      <Txt variant="title" style={{ fontSize: 22 }}>
+        {value}
+      </Txt>
+      <Txt variant="caption" tone="sub">
+        {label}
+      </Txt>
+    </View>
+  );
+}

@@ -15,6 +15,10 @@ jobs:
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    # app 连哪个后端：仓库 Settings → Secrets and variables → Actions → Variables 里的 EXPO_PUBLIC_API_URL
+    # （比如 https://ninebug.xyz）。没设置的话打出来的包连不上后端，只能用本机数据
+    env:
+      EXPO_PUBLIC_API_URL: ${{ vars.EXPO_PUBLIC_API_URL }}
     steps:
       - uses: actions/checkout@v7
 
@@ -46,30 +50,66 @@ jobs:
         working-directory: android
         run: ./gradlew :app:lintVitalRelease -PreactNativeArchitectures=arm64-v8a --no-daemon
 
+      # 正式签名：密钥放在仓库 Settings → Secrets and variables → Actions → Secrets 里
+      #   ANDROID_KEYSTORE_BASE64（.p12 文件的 base64）、ANDROID_KEYSTORE_PASSWORD、ANDROID_KEY_ALIAS
+      # 没配的话（比如别人 fork 的仓库）退回临时签名，只能自己测试用，发布时会被下面的检查拦住
       - name: 编译 APK（只打 arm64）
         working-directory: android
-        run: ./gradlew assembleRelease -PreactNativeArchitectures=arm64-v8a --no-daemon
+        env:
+          KS_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KS_PW: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+        run: |
+          sign=()
+          if [ -n "$KS_B64" ]; then
+            echo "$KS_B64" | base64 -d > "$RUNNER_TEMP/release.p12"
+            sign=(
+              "-Pandroid.injected.signing.store.file=$RUNNER_TEMP/release.p12"
+              "-Pandroid.injected.signing.store.password=$KS_PW"
+              "-Pandroid.injected.signing.key.alias=$KEY_ALIAS"
+              "-Pandroid.injected.signing.key.password=$KS_PW"
+            )
+          else
+            echo "::warning::没有配置正式签名，这次用临时签名，只能自己测试"
+          fi
+          ./gradlew assembleRelease -PreactNativeArchitectures=arm64-v8a --no-daemon "${sign[@]}"
+          rm -f "$RUNNER_TEMP/release.p12"
 
       - name: 给 APK 起名
         # 功能分支名可能带 /，用提交号命名避免把文件名误当作目录。
-        run: mv android/app/build/outputs/apk/release/app-release.apk "homework-${GITHUB_SHA::7}-${GITHUB_RUN_NUMBER}.apk"
+        run: mv android/app/build/outputs/apk/release/app-release.apk "ddl-killer-${GITHUB_SHA::7}-${GITHUB_RUN_NUMBER}.apk"
 
       - name: 验证 APK 签名并生成校验和
         run: |
           apksigner="$(find "$ANDROID_HOME/build-tools" -maxdepth 2 -type f -name apksigner | sort -V | tail -n 1)"
           test -n "$apksigner"
-          "$apksigner" verify --verbose homework-*.apk
-          sha256sum homework-*.apk > SHA256SUMS.txt
+          "$apksigner" verify --verbose ddl-killer-*.apk
+          # 正式签名证书的指纹（公开信息，不是密码）。发布版本必须是它，否则同学没法覆盖升级
+          release_cert=84b8aa403877ad91c703b5adb0912d2213850dc5a4298fad7f9f30dc00b2245d
+          cert="$("$apksigner" verify --print-certs ddl-killer-*.apk | grep -m1 'SHA-256 digest' | awk '{print $NF}')"
+          echo "签名证书 SHA-256：$cert"
+          if [ "$cert" = "$release_cert" ]; then
+            echo "用的是正式签名"
+          elif [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            echo "::error::发布版本必须用正式签名"; exit 1
+          else
+            echo "::warning::不是正式签名，这个包只能自己测试，不要发给同学"
+          fi
+          sha256sum ddl-killer-*.apk > SHA256SUMS.txt
 
       - uses: actions/upload-artifact@v7
         with:
-          name: homework-apk
+          name: ddl-killer-apk
           path: |
-            homework-*.apk
+            ddl-killer-*.apk
             SHA256SUMS.txt
 
       - name: 发布到 Release
         if: startsWith(github.ref, 'refs/tags/')
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "${{ github.ref_name }}" homework-*.apk --title "${{ github.ref_name }}" --notes "安卓 APK，仅支持 arm64。"
+        # 另外放一份固定名字的 ddl-killer.apk，网站上就能用一个永远指向最新版的地址：
+        # https://github.com/ANineBug/ddl-killer/releases/latest/download/ddl-killer.apk
+        run: |
+          cp ddl-killer-*.apk ddl-killer.apk
+          gh release create "${{ github.ref_name }}" ddl-killer-*.apk ddl-killer.apk --title "${{ github.ref_name }}" --notes "安卓 APK，仅支持 arm64。"

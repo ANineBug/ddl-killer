@@ -1,25 +1,41 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
-import { StyleSheet } from 'react-native';
+import { StyleSheet, TextInput, View } from 'react-native';
 
+import { AttachmentEditor, type PendingFile } from '@/components/Attachments';
 import { CalendarPicker } from '@/components/CalendarPicker';
 import { TimePicker } from '@/components/TimePicker';
 import { useToast } from '@/components/Toast';
 import { Chip, ChipGroup, closeModal, Field, ModalScreen, Press, PrimaryButton, Txt } from '@/components/ui';
-import { dayDiff, hhmm, isoWeekday, weekdayNames } from '@/data/format';
+import { dayDiff, formatDue, hhmm, isoWeekday, isTbd, weekdayNames } from '@/data/format';
+import { errorText, useOnline } from '@/data/online';
+import { nextClass as findNextClass } from '@/data/periods';
 import { useStore } from '@/data/store';
 import { SubmitMethod } from '@/data/types';
 import { useTheme } from '@/theme/useTheme';
 
 const times = ['08:00', '12:00', '18:00', '23:59'];
 const methods: SubmitMethod[] = ['纸质', '学习通', '邮箱', '其他'];
+// 作业是从哪听来的，方便大家判断靠不靠谱
+const sources = ['课堂口头', '学习通', '群通知'];
+// 自定义来源最多几个字，和服务器的限制一致
+const SOURCE_MAX = 20;
 
 function dayFromToday(offset: number) {
   const d = new Date();
   d.setHours(0, 0, 0, 0);
   d.setDate(d.getDate() + offset);
   return d;
+}
+
+// 今天 / 明天 / 周五 / 11 月 20 日
+function dayLabel(d: Date) {
+  const diff = dayDiff(d);
+  if (diff === 0) return '今天';
+  if (diff === 1) return '明天';
+  if (diff > 1 && diff < 7) return weekdayNames[isoWeekday(d)];
+  return `${d.getMonth() + 1} 月 ${d.getDate()} 日`;
 }
 
 function nextDays() {
@@ -32,14 +48,20 @@ function nextDays() {
 
 export default function Upload() {
   const { theme } = useTheme();
-  const { courses: allCourses, homework, addHomework, updateHomework, courseById, timetable } = useStore();
+  const { courses: allCourses, homework, addHomework, updateHomework, courseById, timetable, settings } = useStore();
   const toast = useToast();
-  // 带着 id 打开就是编辑自己上传过的作业，表单先填好原来的内容
-  const { id } = useLocalSearchParams<{ id?: string }>();
+  const online = useOnline();
+  const [busy, setBusy] = useState(false);
+  // 带着 id 打开就是编辑自己上传过的作业，表单先填好原来的内容；
+  // 从课程页点进来会带着 course，先选好那门课
+  const { id, course: fromCourse } = useLocalSearchParams<{ id?: string; course?: string }>();
   const editing = homework.find((h) => h.id === id && h.mine);
-  const courses = allCourses.filter((c) => c.id === editing?.courseId || (timetable.term ? c.source?.term === timetable.term : !c.source));
+  const preset = editing?.courseId ?? fromCourse;
+  const courses = allCourses.filter((c) => c.id === preset || (timetable.term ? c.source?.term === timetable.term : !c.source));
 
-  const [courseId, setCourseId] = useState<string | null>(editing?.courseId ?? null);
+  const [courseId, setCourseId] = useState<string | null>(preset && courses.some((c) => c.id === preset) ? preset : null);
+  // 没带课进来、又有课可选时，直接展开让人选
+  const [courseOpen, setCourseOpen] = useState(!preset && courses.length > 0);
   const [title, setTitle] = useState(editing?.title ?? '');
   const [date, setDate] = useState(() => {
     if (!editing) return dayFromToday(1);
@@ -52,20 +74,70 @@ export default function Upload() {
   const [timeOpen, setTimeOpen] = useState(false);
   const [submit, setSubmit] = useState<SubmitMethod>(editing?.submit ?? '学习通');
   const [detail, setDetail] = useState(editing?.detail ?? '');
-  const [hasPhoto, setHasPhoto] = useState(editing?.hasPhoto ?? false);
+  const [source, setSource] = useState(editing?.remote?.source ?? '课堂口头');
+  // 不在三个常用选项里的，就是自己填的来源
+  const [customSource, setCustomSource] = useState(!!editing?.remote && !sources.includes(editing.remote.source));
+  // 截止方式：具体时间 / 下次课前（按课表算出下次上课的时间）/ 待定
+  const [dueKind, setDueKind] = useState<'at' | 'next_class' | 'tbd'>(editing?.remote?.dueKind ?? 'at');
+  const [optional, setOptional] = useState(editing?.remote?.optional ?? false);
+  const [groupWork, setGroupWork] = useState(editing?.remote?.groupWork ?? false);
+  // 附件：刚选的还在手机上，发布时一个一个传；编辑时点掉的旧附件，保存时才真正删
+  const [files, setFiles] = useState<PendingFile[]>([]);
+  const [removed, setRemoved] = useState<string[]>([]);
+  const kept = (editing?.remote?.attachments ?? []).filter((a) => !removed.includes(a.id));
+  const course = courseId ? courseById(courseId) : undefined;
+  // 这门课已经接上服务器了：发布到班里，要先登录
+  const shared = !!course?.serverClassId;
+  const needLogin = shared && !online.loggedIn;
+  const upcoming = course ? findNextClass(course, course.source ? timetable.starts[course.source.term] : undefined, settings.periodTimes) : null;
+  const nextClass = upcoming?.at ?? null;
+  // 这门课已经有人传过的、还没截止的作业：发布前先看一眼，免得重复传
+  const existing = shared && !editing ? homework.filter((h) => h.courseId === courseId && h.remote && h.remote.state !== 'closed' && h.remote.state !== 'cancelled') : [];
 
-  const ready = courseId !== null && title.trim().length > 0;
+  const ready = courseId !== null && title.trim().length > 0 && !(dueKind === 'next_class' && !nextClass) && !(shared && !source.trim());
   const quickDays = nextDays();
   // 选的日期不在最近 7 天里，就是自定义的日期
   const customDate = dayDiff(date) > 6;
   const customTime = !times.includes(time);
 
-  function publish() {
-    if (!courseId) return;
-    const due = new Date(date);
+  async function publish() {
+    if (!courseId || busy) return;
+    let due = new Date(date);
     const [h, m] = time.split(':').map(Number);
     due.setHours(h, m, 0, 0);
-    const data = { courseId, title: title.trim(), detail: detail.trim(), due, submit, hasPhoto };
+    if (dueKind === 'next_class' && nextClass) due = nextClass;
+    const data = { courseId, title: title.trim(), detail: detail.trim(), due, submit, hasPhoto: false };
+    if (shared) {
+      // 先等服务器收下再关页面；被拒绝（比如新同学今天传满了）就留在这里，内容不丢
+      setBusy(true);
+      try {
+        const payload = { title: data.title, detail: data.detail, dueKind, due: dueKind === 'tbd' ? null : due, submit, source: source.trim(), optional, groupWork };
+        let homeworkId: number;
+        if (editing?.remote) {
+          await online.edit(editing, { ...payload, due: payload.due ? payload.due.toISOString() : null });
+          homeworkId = editing.remote.id;
+        } else {
+          homeworkId = (await online.upload(course!.serverClassId!, payload)).id;
+        }
+        // 作业已经存上了；附件传失败的只提示，不把作业也算失败
+        const failed: string[] = [];
+        if (files.length || removed.length) {
+          for (const key of removed) await online.detach(key).catch(() => failed.push('删除旧附件'));
+          for (const f of files) {
+            await online.attach(homeworkId, f).catch((e) => failed.push(`${f.name}（${errorText(e)}）`));
+          }
+          await online.reload(homeworkId).catch(() => {});
+        }
+        closeModal();
+        if (failed.length) toast(`作业${editing ? '已保存' : '已发布'}，但这些没传上：${failed.join('、')}`);
+        else toast(editing ? '已保存修改' : '已发布，班里的同学都能看到了');
+      } catch (e) {
+        toast(errorText(e));
+      } finally {
+        setBusy(false);
+      }
+      return;
+    }
     closeModal();
     if (editing) {
       updateHomework(editing.id, data);
@@ -73,27 +145,103 @@ export default function Upload() {
       return;
     }
     addHomework(data);
-    const course = courseById(courseId);
-    toast(course?.source ? '已保存在本机，联网共享功能尚未接入' : `已发布，同课的 ${course?.members ?? 0} 位同学都能看到了`);
+    // 走到这里的课还没连上服务器上的教学班，作业只记在这台手机上
+    toast('已保存在本机，这门课还没连上教学班，同学看不到');
   }
 
   return (
     <ModalScreen
       title={editing ? '编辑作业' : '上传作业'}
-      footer={<PrimaryButton label={editing ? '保存' : '发布'} onPress={publish} disabled={!ready} />}>
+      footer={
+        needLogin ? (
+          <PrimaryButton label="登录后发布" onPress={() => router.push('/login')} />
+        ) : (
+          <PrimaryButton label={busy ? '发布中…' : editing ? '保存' : '发布'} onPress={publish} disabled={!ready || busy} />
+        )
+      }>
       {courses.length === 0 && (
         <Txt variant="caption" tone="faint">
           课表里还没有课，先去「课表」添加课程，才能给它上传作业。
         </Txt>
       )}
-      <ChipGroup label="哪门课">
-        {courses.map((c) => (
-          <Chip key={c.id} label={c.name} active={courseId === c.id} onPress={() => setCourseId(c.id)} />
-        ))}
-      </ChipGroup>
+      {/* 哪门课：平时收起来只显示选中的那门，点开是一列课程，选完自动收起 */}
+      <View style={{ marginTop: 22 }}>
+        <Txt variant="caption" tone="sub" style={{ marginBottom: 8, marginLeft: 4 }}>
+          哪门课
+        </Txt>
+        <Press
+          onPress={() => setCourseOpen((v) => !v)}
+          style={[styles.select, { backgroundColor: theme.card, borderColor: courseOpen ? theme.accent : theme.glass ? theme.cardEdge : theme.line }]}>
+          <Txt variant="sub" tone={course ? 'text' : 'faint'} numberOfLines={1} style={{ flex: 1 }}>
+            {course?.name ?? '选择课程'}
+          </Txt>
+          <Ionicons name={courseOpen ? 'chevron-up' : 'chevron-down'} size={16} color={theme.faint} />
+        </Press>
+        {courseOpen && (
+          <View style={[styles.options, { backgroundColor: theme.card, borderColor: theme.glass ? theme.cardEdge : theme.line }]}>
+            {courses.map((c, i) => (
+              <Press
+                key={c.id}
+                onPress={() => {
+                  setCourseId(c.id);
+                  setCourseOpen(false);
+                }}
+                style={[styles.option, i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.line }]}>
+                <View style={[styles.dot, { backgroundColor: theme.courseHues[c.hue % theme.courseHues.length] }]} />
+                <Txt variant="sub" numberOfLines={1} style={{ flex: 1 }}>
+                  {c.name}
+                </Txt>
+                {courseId === c.id && <Ionicons name="checkmark" size={16} color={theme.accent} />}
+              </Press>
+            ))}
+          </View>
+        )}
+      </View>
 
       <Field label="作业标题" placeholder="比如：习题 3.2" value={title} onChangeText={setTitle} />
 
+      {existing.length > 0 && (
+        <View style={[styles.existing, { borderColor: theme.line }]}>
+          <Txt variant="caption" tone="sub" style={{ marginBottom: 6 }}>
+            这门课已经有人传了这些，是同一个的话就不用再传了
+          </Txt>
+          {existing.slice(0, 5).map((h) => (
+            <Press key={h.id} onPress={() => router.push(`/homework/${h.id}`)} style={styles.existingRow}>
+              <Txt variant="sub" numberOfLines={1} style={{ flex: 1 }}>
+                {h.title}
+              </Txt>
+              <Txt variant="caption" tone="faint">
+                {isTbd(h.due) ? '待定' : formatDue(h.due, true)} ›
+              </Txt>
+            </Press>
+          ))}
+        </View>
+      )}
+
+      {shared && (
+        <ChipGroup label="什么时候截止">
+          <Chip label="具体时间" active={dueKind === 'at'} onPress={() => setDueKind('at')} />
+          <Chip label="下次课前" active={dueKind === 'next_class'} onPress={() => setDueKind('next_class')} />
+          <Chip label="待定" active={dueKind === 'tbd'} onPress={() => setDueKind('tbd')} />
+        </ChipGroup>
+      )}
+      {shared && dueKind === 'next_class' && (
+        <Txt variant="caption" tone={nextClass ? 'sub' : 'urgent'} style={{ marginTop: 8, marginLeft: 4 }}>
+          {upcoming
+            ? upcoming.known
+              ? `下次上课：${dayLabel(upcoming.at)}第 ${upcoming.period} 节，上课前提醒`
+              : `下次上课：${dayLabel(upcoming.at)}第 ${upcoming.period} 节。还没填第 ${upcoming.period} 节几点上课，先按当天早上 7 点提醒（「我的」里可以填）`
+            : '课表里找不到这门课接下来的上课时间，请选具体时间'}
+        </Txt>
+      )}
+      {shared && dueKind === 'tbd' && (
+        <Txt variant="caption" tone="sub" style={{ marginTop: 8, marginLeft: 4 }}>
+          老师还没说什么时候交。定下来以后，谁知道了点「有问题 → 老师改了」补上
+        </Txt>
+      )}
+
+      {(!shared || dueKind === 'at') && (
+      <>
       <ChipGroup label="截止日期">
         {quickDays.map((d) => (
           <Chip
@@ -137,6 +285,8 @@ export default function Upload() {
         <Chip label={customTime ? time : '自定义'} active={customTime || timeOpen} onPress={() => setTimeOpen((v) => !v)} />
       </ChipGroup>
       {timeOpen && <TimePicker value={time} onChange={setTime} />}
+      </>
+      )}
 
       <ChipGroup label="提交方式">
         {methods.map((m) => (
@@ -144,29 +294,72 @@ export default function Upload() {
         ))}
       </ChipGroup>
 
+      {shared && (
+        <ChipGroup label="标签（可选）">
+          <Chip label="选做（非必做）" active={optional} onPress={() => setOptional((v) => !v)} />
+          <Chip label="小组作业" active={groupWork} onPress={() => setGroupWork((v) => !v)} />
+        </ChipGroup>
+      )}
+
+      {shared && (
+        <ChipGroup label="从哪知道的">
+          {sources.map((x) => (
+            <Chip
+              key={x}
+              label={x}
+              active={!customSource && source === x}
+              onPress={() => {
+                setSource(x);
+                setCustomSource(false);
+              }}
+            />
+          ))}
+          <Chip
+            label="自定义"
+            active={customSource}
+            onPress={() => {
+              if (customSource) return;
+              setCustomSource(true);
+              setSource('');
+            }}
+          />
+        </ChipGroup>
+      )}
+      {shared && customSource && (
+        <TextInput
+          autoFocus={!editing}
+          value={source}
+          onChangeText={setSource}
+          maxLength={SOURCE_MAX}
+          placeholder="比如：助教说的、课程群公告"
+          placeholderTextColor={theme.faint}
+          style={[styles.sourceInput, { backgroundColor: theme.card, borderColor: theme.glass ? theme.cardEdge : theme.line, color: theme.text }]}
+        />
+      )}
+
       <Field label="要求（可选）" placeholder="页码、题号、格式要求……" value={detail} onChangeText={setDetail} multiline />
 
-      <Press
-        onPress={() => setHasPhoto((v) => !v)}
-        style={[styles.photo, { borderColor: hasPhoto ? theme.accent : theme.line, backgroundColor: hasPhoto ? theme.accentSoft : 'transparent' }]}>
-        <Ionicons name={hasPhoto ? 'image' : 'camera-outline'} size={20} color={hasPhoto ? theme.accent : theme.sub} />
-        <Txt variant="sub" tone={hasPhoto ? 'accent' : 'sub'} style={{ marginLeft: 8 }}>
-          {hasPhoto ? '已添加 1 张照片（演示）' : '拍黑板 / 拍 PPT'}
-        </Txt>
-      </Press>
+      {/* 附件要传到班里，只有连上教学班的课才有 */}
+      {shared && (
+        <AttachmentEditor
+          existing={kept}
+          onRemoveExisting={(key) => setRemoved((r) => [...r, key])}
+          files={files}
+          onChange={setFiles}
+          onError={toast}
+        />
+      )}
+
     </ModalScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  photo: {
-    marginTop: 22,
-    height: 56,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderStyle: 'dashed',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  select: { flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: 1, borderRadius: 14, paddingHorizontal: 14, height: 46 },
+  options: { marginTop: 8, borderWidth: 1, borderRadius: 14, overflow: 'hidden' },
+  option: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, paddingVertical: 12 },
+  dot: { width: 8, height: 8, borderRadius: 4 },
+  sourceInput: { marginTop: 10, borderWidth: 1, borderRadius: 14, paddingHorizontal: 14, height: 44, fontSize: 15, outlineWidth: 0 },
+  existing: { marginTop: 18, borderWidth: 1, borderStyle: 'dashed', borderRadius: 14, padding: 12 },
+  existingRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 6 },
 });

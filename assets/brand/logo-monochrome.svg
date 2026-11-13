@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><g transform="translate(50 50) scale(0.72) translate(-50 -50)">
+  <defs>
+    <clipPath id="mono-top"><polygon points="-20,-20 120,-20 120,38 -20,66"/></clipPath>
+    <clipPath id="mono-bottom"><polygon points="-20,66 120,38 120,120 -20,120"/></clipPath>
+  </defs>
+  <g transform="translate(-4.5 -1)">
+    <g transform="translate(0 -1)"><path clip-path="url(#mono-top)" d="M27 20H50A30 30 0 0 1 50 80H27Z M40 32H49A18 18 0 0 1 49 68H40Z" fill="#000" fill-rule="evenodd"/></g>
+    <g transform="translate(2.5 3.5)"><path clip-path="url(#mono-bottom)" d="M27 20H50A30 30 0 0 1 50 80H27Z M40 32H49A18 18 0 0 1 49 68H40Z" fill="#000" fill-rule="evenodd"/></g>
+  </g></g></svg>

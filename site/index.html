@@ -1,0 +1,435 @@
+<!doctype html>
+<html lang="zh-CN" class="fx-intro fx-title fx-phone fx-tilt fx-float fx-reveal fx-cards fx-count fx-hover fx-nav">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DDL斩 · 同学一起记作业，再也不漏 DDL</title>
+<meta name="description" content="DDL斩：同一个教学班的同学一起记作业。有人传、大家确认、传错一起改，截止前手机提醒。不要学号姓名，代码公开。">
+<meta name="theme-color" content="#faf9f5">
+<meta property="og:title" content="DDL斩 · 同学一起记作业，再也不漏 DDL">
+<meta property="og:description" content="老师布置的作业，班里有人传上来，大家都能看到；到点了手机提醒你。">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<style>
+  /* 只用系统字体，不加载任何外部资源：大陆访问外网字体、CDN 都不稳定 */
+  :root {
+    --serif: "Noto Serif SC", "Source Han Serif SC", "Songti SC", STSong, "SimSun", serif;
+    --sans: system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+    --bg: #faf9f5; --card: #ffffff; --line: #e8e5db; --text: #1f1e1d; --sub: #73716a; --faint: #b6b3a9;
+    --accent: #c2603e; --urgent: #b03a22; --soft: rgba(194, 96, 62, .10);
+    --ease: cubic-bezier(.2, .8, .2, 1); --spring: cubic-bezier(.34, 1.56, .64, 1);
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.6 var(--sans); overflow-x: hidden; }
+  a { color: inherit; }
+  h1, h2, .serif { font-family: var(--serif); font-weight: 600; letter-spacing: .5px; }
+  .container { max-width: 1120px; margin: 0 auto; padding: 0 20px; }
+
+  /* 顶栏 */
+  .navwrap { position: relative; z-index: 20; }
+  .nav { display: flex; align-items: center; justify-content: space-between; padding: 18px 0; }
+  .brand { display: flex; align-items: center; gap: 10px; text-decoration: none; font-family: var(--serif); font-weight: 700; font-size: 19px; letter-spacing: 1px; }
+  .brand svg { width: 32px; height: 32px; border-radius: 9px; display: block; box-shadow: 0 0 0 1px var(--line); }
+  .nav .links { display: none; gap: 26px; font-size: 14px; color: var(--sub); }
+  .nav .links a { text-decoration: none; position: relative; }
+  .nav .links a:hover { color: var(--text); }
+
+  /* 开头 */
+  .hero { display: flex; flex-direction: column; align-items: center; gap: 36px; padding: 18px 0 46px; }
+  .hero h1 { font-size: 34px; line-height: 1.3; margin: 0; }
+  .hero h1 .line { display: block; }
+  .hero h1 .ddl { position: relative; display: inline-block; }
+  .hero .lead { color: var(--sub); font-size: 16px; line-height: 1.85; margin: 16px 0 0; }
+  .cta { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 26px; }
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 50px; padding: 0 24px; border-radius: 999px; font-size: 15px; font-weight: 600; text-decoration: none; border: 1px solid transparent; transition: opacity .15s; }
+  .btn:hover { opacity: .85; }
+  .btn.main { background: var(--text); color: var(--bg); }
+  .btn.ghost { border-color: var(--line); color: var(--sub); }
+  .btn svg { width: 18px; height: 18px; }
+  .hint { font-size: 12.5px; color: var(--faint); margin-top: 12px; }
+  .stats { display: flex; gap: 26px; margin-top: 30px; color: var(--sub); font-size: 12.5px; }
+  .stats b { display: block; font-family: var(--serif); font-size: 21px; color: var(--text); font-weight: 600; }
+
+  /* 手机样机 */
+  .phonewrap { perspective: 1200px; flex: none; }
+  .phone { width: 280px; border-radius: 36px; padding: 9px; background: var(--text); box-shadow: 0 26px 60px rgba(40, 30, 20, .18); transform-style: preserve-3d; transition: transform .5s var(--ease); }
+  .screen { border-radius: 28px; overflow: hidden; background: var(--bg); padding: 28px 14px 14px; font-size: 11px; position: relative; height: 540px; }
+  .screen .date { color: var(--sub); font-size: 10px; }
+  .screen .hello { font-family: var(--serif); font-size: 25px; font-weight: 600; margin: 2px 0 4px; }
+  .screen .summary { color: var(--sub); font-size: 10.5px; }
+  .screen .summary b { color: var(--urgent); }
+  .screen .group { color: var(--sub); font-size: 10px; margin: 14px 0 6px 3px; }
+  .mcard { background: var(--card); border: .5px solid var(--line); border-radius: 13px; overflow: hidden; }
+  .mrow { display: flex; align-items: center; padding: 9px 11px; gap: 9px; }
+  .mrow + .mrow { border-top: .5px solid #eeebe3; }
+  .circle { width: 16px; height: 16px; border-radius: 50%; border: 1.3px solid var(--faint); flex: none; position: relative; transition: background .25s, border-color .25s, transform .3s var(--spring); }
+  .circle.on { background: var(--accent); border-color: var(--accent); }
+  .circle.on::after { content: ""; position: absolute; left: 4.5px; top: 1.5px; width: 4px; height: 8px; border: solid #fff; border-width: 0 1.5px 1.5px 0; transform: rotate(45deg); }
+  .mt { font-size: 11.5px; }
+  .mt.done { color: var(--sub); text-decoration: line-through; }
+  .ms { font-size: 9.5px; color: var(--sub); margin-top: 1px; }
+  .ms .u { color: var(--urgent); font-weight: 700; }
+  .mcount { margin-left: auto; color: var(--faint); font-size: 9.5px; display: flex; gap: 2px; align-items: center; }
+  .pill { display: inline-block; font-size: 8.5px; color: var(--accent); background: var(--soft); border-radius: 999px; padding: 0 5px; margin-left: 4px; vertical-align: 1px; }
+  .tail { height: 4px; margin: 0 auto; border: .5px solid var(--line); border-top: 0; border-radius: 0 0 9px 9px; }
+  .tabbar { position: absolute; left: 50%; bottom: 12px; transform: translateX(-50%); display: flex; gap: 4px; padding: 4px; border-radius: 999px; background: rgba(250, 249, 245, .92); border: .5px solid var(--line); }
+  .tabbar span { font-size: 9px; color: var(--faint); padding: 4px 12px; border-radius: 999px; }
+  .tabbar span.on { background: rgba(194, 96, 62, .12); color: var(--text); font-weight: 600; }
+
+  /* 四个功能 */
+  .cards { display: grid; gap: 12px; grid-template-columns: 1fr; padding-bottom: 20px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 18px; display: flex; flex-direction: column; gap: 10px; }
+  .card h3 { font-family: var(--serif); font-size: 19px; font-weight: 600; margin: 0; }
+  .card p { color: var(--sub); line-height: 1.75; margin: 0; font-size: 14px; }
+  .art { margin-top: auto; padding-top: 6px; min-height: 92px; display: flex; flex-direction: column; justify-content: flex-end; }
+  .mini { background: var(--bg); border: 1px solid var(--line); border-radius: 14px; padding: 11px 12px; font-size: 12px; }
+  .notif { display: flex; gap: 10px; align-items: flex-start; }
+  .notif svg { width: 30px; height: 30px; border-radius: 8px; flex: none; }
+  .bubble { display: inline-block; padding: 6px 10px; border-radius: 12px; background: var(--card); border: 1px solid var(--line); margin-top: 5px; }
+  .bubble.me { background: var(--soft); border-color: transparent; }
+  .who { font-size: 10.5px; color: var(--faint); }
+
+  /* 隐私、安装 */
+  .section { padding: 44px 0; border-top: 1px solid var(--line); display: grid; gap: 10px; }
+  .section h2 { font-size: 25px; margin: 0; }
+  .section ul { margin: 6px 0 0; padding-left: 20px; color: var(--sub); line-height: 1.9; }
+  .section .note { font-size: 13px; color: var(--faint); margin: 4px 0 0; }
+  .footer { padding: 28px 0 40px; border-top: 1px solid var(--line); color: var(--faint); font-size: 13px; display: flex; flex-wrap: wrap; gap: 8px 18px; justify-content: space-between; }
+  .footer a { text-decoration: none; }
+  .footer a:hover { color: var(--sub); }
+
+  @media (min-width: 820px) {
+    .container { padding: 0 48px; }
+    .nav { padding: 26px 0; }
+    .nav .links { display: flex; }
+    .hero { flex-direction: row; justify-content: space-between; padding: 40px 0 72px; }
+    .hero .copy { max-width: 540px; }
+    .hero h1 { font-size: 54px; }
+    .hero .lead { font-size: 17px; }
+    .cards { grid-template-columns: repeat(4, 1fr); }
+    .section { grid-template-columns: 1fr 1.6fr; gap: 40px; padding: 56px 0; }
+  }
+
+  /* ================= 动画：每一项都挂在 <html> 的一个 class 上，去掉 class 就关掉 ================= */
+
+  /* 1 开场：标志里的日历被斩开，下半截掉下去 */
+  .fx-intro .brand .bottom { animation: fall 1.1s .3s both var(--spring); }
+  .fx-intro .brand .top { animation: lift 1.1s .3s both var(--spring); }
+  @keyframes lift { 0%, 35% { transform: translateY(1px); } to { transform: none; } }
+  .fx-intro .brand .slash { animation: slash .45s .3s both ease-out; }
+  .fx-intro .brand:hover .bottom { animation: wobble .6s var(--ease); }
+  @keyframes fall { 0%, 35% { transform: translate(-2.5px, -2.5px); } to { transform: none; } }
+  @keyframes slash { 0% { stroke-dashoffset: 140; opacity: 1; } 70% { stroke-dashoffset: 0; opacity: 1; } 100% { stroke-dashoffset: 0; opacity: 0; } }
+  @keyframes wobble { 40% { transform: translate(1.5px, 2px); } }
+  .brand .slash { opacity: 0; stroke-dasharray: 140; }
+
+  /* 2 标题：两行依次浮上来，「DDL」被斩一刀 */
+  .fx-title .hero h1 .line, .fx-title .hero .lead, .fx-title .hero .cta, .fx-title .hero .hint, .fx-title .hero .stats { animation: rise .8s both var(--ease); }
+  .fx-title .hero h1 .line:nth-child(2) { animation-delay: .12s; }
+  .fx-title .hero .lead { animation-delay: .24s; }
+  .fx-title .hero .cta { animation-delay: .34s; }
+  .fx-title .hero .hint { animation-delay: .42s; }
+  .fx-title .hero .stats { animation-delay: .5s; }
+  @keyframes rise { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: none; } }
+  .fx-title .hero h1 .ddl::after { content: ""; position: absolute; left: -4%; right: -4%; top: 62%; height: .09em; background: var(--accent); border-radius: 2px; transform: rotate(-12deg) scaleX(0); transform-origin: left center; animation: cut .45s 1.1s forwards cubic-bezier(.7, 0, .3, 1); }
+  @keyframes cut { to { transform: rotate(-12deg) scaleX(1); } }
+
+  /* 3 手机里自动演示：打勾 → 划掉 → 收起 → 有同学传了新作业 */
+  .phone .toast { position: absolute; left: 12px; right: 12px; bottom: 50px; background: var(--text); color: var(--bg); border-radius: 12px; padding: 8px 11px; font-size: 10px; display: flex; justify-content: space-between; opacity: 0; transform: translateY(10px); transition: opacity .3s, transform .3s var(--ease); }
+  .phone .toast.show { opacity: 1; transform: none; }
+  .phone .toast b { color: #e8a58c; font-weight: 600; }
+  .phone .finger { position: absolute; width: 26px; height: 26px; border-radius: 50%; background: rgba(194, 96, 62, .25); border: 1.5px solid rgba(194, 96, 62, .6); pointer-events: none; opacity: 0; transform: scale(1.4); transition: opacity .25s, transform .25s; }
+  .phone .finger.show { opacity: 1; transform: scale(1); }
+  .phone .finger.tap { transform: scale(.8); }
+  .phone .collapse { transition: max-height .45s var(--ease), opacity .35s, margin .45s var(--ease); overflow: hidden; }
+  .phone .mt.striking { background: linear-gradient(var(--text), var(--text)) left 55% / 0 1px no-repeat; transition: background-size .35s ease-out, color .3s; }
+  .phone .mt.striking.go { background-size: 100% 1px; color: var(--sub); }
+  .phone .newrow { animation: slidein .55s var(--ease) both; background: rgba(194, 96, 62, .07); transition: background 1.2s; }
+  .phone .newrow.settled { background: transparent; }
+  @keyframes slidein { from { opacity: 0; transform: translateY(-14px); max-height: 0; } to { opacity: 1; transform: none; max-height: 60px; } }
+
+  /* 4 手机跟着鼠标轻轻倾斜（只在电脑上） */
+  /* 5 手机平时轻轻上下浮动 */
+  .fx-float .phonewrap { animation: float 6s ease-in-out infinite; }
+  @keyframes float { 50% { transform: translateY(-8px); } }
+
+  /* 6 往下翻，内容依次浮现 */
+  .fx-reveal .reveal { opacity: 0; transform: translateY(24px); transition: opacity .7s var(--ease), transform .7s var(--ease); }
+  .fx-reveal .reveal.in { opacity: 1; transform: none; }
+
+  /* 7 功能卡片里的小动画：翻到时播放 */
+  .card .step { transition: opacity .4s, transform .5s var(--ease); }
+  .fx-cards .card:not(.played) .step { opacity: 0; transform: translateY(10px); }
+  .fx-cards .card .notif-wrap { transition: transform .6s var(--spring), opacity .3s; }
+  .fx-cards .card:not(.played) .notif-wrap { transform: translateY(-30px); opacity: 0; }
+  .typing { display: inline-flex; gap: 3px; padding: 8px 10px; border-radius: 12px; background: var(--soft); margin-top: 5px; }
+  .typing i { width: 5px; height: 5px; border-radius: 50%; background: var(--accent); opacity: .5; animation: dot 1s infinite; }
+  .typing i:nth-child(2) { animation-delay: .15s; }
+  .typing i:nth-child(3) { animation-delay: .3s; }
+  @keyframes dot { 30% { transform: translateY(-3px); opacity: 1; } }
+  .old { text-decoration: line-through; color: var(--faint); }
+  .status { transition: color .3s; }
+
+  /* 8 数字滚动 */
+  .stats b { font-variant-numeric: tabular-nums; }
+
+  /* 9 悬停：按钮浮起、图标动一下；卡片浮起 */
+  .fx-hover .btn { transition: transform .25s var(--spring), box-shadow .25s, opacity .15s; }
+  .fx-hover .btn:hover { opacity: 1; transform: translateY(-2px); box-shadow: 0 10px 22px rgba(40, 30, 20, .16); }
+  .fx-hover .btn:active { transform: scale(.97); }
+  .fx-hover .btn.main:hover svg { animation: nod .5s var(--ease); }
+  @keyframes nod { 40% { transform: translateY(2px) rotate(-8deg); } }
+  .fx-hover .card { transition: transform .35s var(--ease), box-shadow .35s, border-color .35s; }
+  .fx-hover .card:hover { transform: translateY(-4px); box-shadow: 0 14px 30px rgba(40, 30, 20, .08); border-color: #ddd8ca; }
+  .fx-hover .nav .links a::after { content: ""; position: absolute; left: 0; right: 0; bottom: -3px; height: 1.5px; background: var(--accent); transform: scaleX(0); transition: transform .25s var(--ease); }
+  .fx-hover .nav .links a:hover::after { transform: scaleX(1); }
+
+  /* 10 顶栏：往下翻以后吸在顶上，半透明毛玻璃 */
+  .fx-nav .navwrap { position: sticky; top: 0; transition: background .3s, box-shadow .3s, backdrop-filter .3s; }
+  .fx-nav .navwrap.stuck { background: rgba(250, 249, 245, .82); backdrop-filter: saturate(1.4) blur(12px); -webkit-backdrop-filter: saturate(1.4) blur(12px); box-shadow: 0 1px 0 var(--line); }
+  .fx-nav .navwrap.stuck .nav { padding: 12px 0; }
+  .nav { transition: padding .3s; }
+
+  /* 系统设置了「减少动画」的同学：全部关掉 */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; transition: none !important; }
+    .reveal { opacity: 1 !important; transform: none !important; }
+  }
+
+ flex: 1; font: inherit; border: 1px solid var(--line); background: var(--bg); border-radius: 999px; padding: 6px 0; cursor: pointer; }
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <!-- 标志：纸白底、红色粗体 D，沿斜线斩开一道细缝，下半截往右下错开 -->
+    <clipPath id="lt"><polygon points="-20,-20 120,-20 120,38 -20,66"/></clipPath>
+    <clipPath id="lb"><polygon points="-20,66 120,38 120,120 -20,120"/></clipPath>
+    <path id="dd" d="M27 20H50A30 30 0 0 1 50 80H27Z M40 32H49A18 18 0 0 1 49 68H40Z" fill-rule="evenodd"/>
+    <symbol id="logo" viewBox="0 0 100 100">
+      <rect width="100" height="100" fill="#faf9f5"/>
+      <g transform="translate(-4.5 -1)" fill="#c2603e">
+        <g transform="translate(0 -1)"><use href="#dd" clip-path="url(#lt)"/></g>
+        <g transform="translate(2.5 3.5)"><use href="#dd" clip-path="url(#lb)"/></g>
+      </g>
+    </symbol>
+  </defs>
+</svg>
+
+<div class="navwrap" id="navwrap"><div class="container">
+  <header class="nav">
+    <a class="brand" href="./">
+      <!-- 标志单独画出来，下半截能动 -->
+      <svg viewBox="0 0 100 100" aria-hidden="true">
+        <rect width="100" height="100" fill="#faf9f5"/>
+        <g transform="translate(-4.5 -1)" fill="#c2603e">
+          <g class="top"><g transform="translate(0 -1)"><use href="#dd" clip-path="url(#lt)"/></g></g>
+          <g transform="translate(2.5 3.5)"><g class="bottom"><use href="#dd" clip-path="url(#lb)"/></g></g>
+        </g>
+        <line class="slash" x1="-2" y1="66.4" x2="102" y2="45.6" stroke="#c2603e" stroke-width="2.5" stroke-linecap="round"/>
+      </svg>DDL斩</a>
+    <nav class="links"><a href="#features">功能</a><a href="#privacy">隐私</a><a href="#install">安装</a><a href="https://github.com/ANineBug/ddl-killer">GitHub</a></nav>
+  </header>
+</div></div>
+
+<div class="container">
+  <section class="hero">
+    <div class="copy">
+      <h1><span class="line">同学一起记作业，</span><span class="line">再也不漏 <span class="ddl">DDL</span></span></h1>
+      <p class="lead">老师布置的作业，班里有人传上来，大家都能看到；传错了一起改，截止前手机提醒你。</p>
+      <div class="cta">
+        <a class="btn main" href="https://github.com/ANineBug/ddl-killer/releases/latest/download/ddl-killer.apk">
+          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M17.6 9.48l1.84-3.18a.38.38 0 0 0-.66-.38l-1.86 3.22a11.4 11.4 0 0 0-9.84 0L5.22 5.92a.38.38 0 0 0-.66.38L6.4 9.48A10.8 10.8 0 0 0 1 18h22a10.8 10.8 0 0 0-5.4-8.52zM7 15.25a1.25 1.25 0 1 1 1.25-1.25A1.25 1.25 0 0 1 7 15.25zm10 0A1.25 1.25 0 1 1 18.25 14 1.25 1.25 0 0 1 17 15.25z"/></svg>下载安卓版</a>
+        <a class="btn ghost" href="https://github.com/ANineBug/ddl-killer">
+          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .5a11.5 11.5 0 0 0-3.64 22.41c.58.1.79-.25.79-.56v-2c-3.2.7-3.88-1.37-3.88-1.37a3.05 3.05 0 0 0-1.28-1.69c-1.05-.72.08-.7.08-.7a2.42 2.42 0 0 1 1.76 1.19 2.45 2.45 0 0 0 3.35.95 2.46 2.46 0 0 1 .73-1.54c-2.55-.29-5.24-1.28-5.24-5.68a4.45 4.45 0 0 1 1.18-3.08 4.13 4.13 0 0 1 .11-3.04s.97-.31 3.17 1.18a10.9 10.9 0 0 1 5.77 0c2.2-1.49 3.17-1.18 3.17-1.18a4.13 4.13 0 0 1 .11 3.04 4.44 4.44 0 0 1 1.18 3.08c0 4.41-2.69 5.38-5.25 5.67a2.75 2.75 0 0 1 .78 2.13v3.16c0 .31.21.67.8.56A11.5 11.5 0 0 0 12 .5z"/></svg>GitHub</a>
+      </div>
+      <p class="hint">安卓 · 免费 · 不要学号姓名 · 先在西南财经大学试用</p>
+      <div class="stats"><div><b data-n="1">1 次</b>导入课表</div><div><b data-n="0">0 个</b>学号姓名</div><div><b data-n="2">2 道</b>提醒保险</div></div>
+    </div>
+
+    <div class="phonewrap" aria-hidden="true"><div class="phone" id="phone"><div class="screen" id="screen"></div></div></div>
+  </section>
+
+  <section class="cards" id="features">
+    <div class="card reveal" data-demo="upload">
+      <h3>有人传，全班看见</h3>
+      <p>同一个教学班的同学，谁听到作业就传一条。课表从教务一键导入，自动认出你在哪些班。</p>
+      <div class="art"><div class="mini step"><div style="display:flex;justify-content:space-between"><b>第四章案例分析</b><span class="who">刚刚 · 小林</span></div><div class="who" style="margin-top:2px">会计学原理 · 下次课前 · 小组作业</div></div></div>
+    </div>
+    <div class="card reveal" data-demo="vote">
+      <h3>传错了，大家一起改</h3>
+      <p>点「有问题」提出修改，同学投票或者上传的人采纳就改过来。每次改动都留着记录。</p>
+      <div class="art"><div class="mini"><div style="display:flex;justify-content:space-between"><b>内容不对</b><span class="status" style="color:var(--accent);font-size:11px">投票中</span></div><div style="margin-top:5px">提交方式：<span class="from">纸质</span> → 学习通</div><div class="who" style="margin-top:5px">同意 <span class="agree">2</span> / 反对 0 · 够 2 就生效</div></div></div>
+    </div>
+    <div class="card reveal" data-demo="notify">
+      <h3>到点提醒，宁早不晚</h3>
+      <p>截止前 1 天、前 3 小时提醒，落在深夜的挪到前一晚。还可以每天早上收一封邮件。</p>
+      <div class="art"><div class="notif-wrap"><div class="mini notif"><svg viewBox="0 0 100 100"><use href="#logo"/></svg><div><div style="font-weight:600">习题 3.2 · 还有 3 小时截止</div><div class="who" style="margin-top:2px">概率论 · 今晚 23:59 截止</div></div></div></div></div>
+    </div>
+    <div class="card reveal" data-demo="chat">
+      <h3>每个班一个聊天室</h3>
+      <p>对作业有疑问就在班里问一句，作业卡片可以直接分享进来，发现错了顺手纠正。</p>
+      <div class="art"><div class="mini"><div class="who step">同学7404 · 热心同学</div><div class="step"><div class="bubble">第三章是交学习通吗？</div></div><div class="reply" style="text-align:right"><div class="bubble me">交学习通，老师刚改的</div></div></div></div>
+    </div>
+  </section>
+
+  <section class="section reveal" id="privacy">
+    <h2>我们不碰你的隐私</h2>
+    <ul>
+      <li>只用邮箱注册，不要学号，不要姓名。</li>
+      <li>教务的账号密码只在学校自己的登录页里输入，app 读不到，也不保存。</li>
+      <li>导入课表时只上传课程安排（哪门课、几点、在哪），别的信息在手机上就丢掉了。</li>
+      <li>代码全部公开在 GitHub，谁都可以检查。</li>
+    </ul>
+  </section>
+
+  <section class="section reveal" id="install">
+    <h2>安装前看一眼</h2>
+    <div>
+      <ul>
+        <li>目前只有安卓版，支持 64 位手机，近几年买的基本都是。</li>
+        <li>下载后打开安装包，系统提示「未知来源」时选允许。</li>
+        <li>想让提醒准时：在 app 的「我的 → 提醒可能不准时」里按提示设置一下，还可以发一条测试提醒看看。</li>
+      </ul>
+      <p class="note">下载慢或者打不开的话，可以到 GitHub 的发布页手动下载。</p>
+    </div>
+  </section>
+
+  <footer class="footer">
+    <span>DDL斩 · 同学们自己做的作业工具</span>
+    <span><a href="https://github.com/ANineBug/ddl-killer">GitHub</a> · <a href="https://github.com/ANineBug/ddl-killer/releases">所有版本</a></span>
+  </footer>
+</div>
+
+
+<script>
+// 每个动画挂在 <html> 的一个 class 上（fx-…），去掉对应的 class 就关掉那一个
+const root = document.documentElement;
+const on = (k) => root.classList.contains('fx-' + k);
+
+// ---------- 3 手机演示 ----------
+const SCREEN = `
+  <div class="date">11 月 11 日 · 周三</div>
+  <div class="hello">晚上好</div>
+  <div class="summary">还有 <span id="left">4</span> 项待完成，最近的在 <b>今晚 23:59</b></div>
+  <div class="collapse" id="todayBlock" style="max-height:120px">
+    <div class="group">今天</div>
+    <div class="mcard"><div class="mrow"><div class="circle" id="c1"></div><div><div class="mt" id="t1">习题 3.2<span class="pill">可能重复 · 2</span></div><div class="ms">概率论 · <span class="u">今晚 23:59 截止</span></div></div><div class="mcount">18</div></div></div>
+    <div class="tail" style="width:92%;background:#f4f2ec"></div><div class="tail" style="width:84%;background:#eeebe3"></div>
+  </div>
+  <div class="group">明天</div>
+  <div class="mcard" id="tomorrow">
+    <div class="mrow"><div class="circle"></div><div><div class="mt">Problem Set 4</div><div class="ms">中级微观 · 明天 14:00 截止</div></div><div class="mcount">21</div></div>
+    <div class="mrow"><div class="circle"></div><div><div class="mt">读书报告</div><div class="ms">大学语文 · 截止待定 · 选做</div></div><div class="mcount">3</div></div>
+  </div>
+  <div class="group">这周</div>
+  <div class="mcard">
+    <div class="mrow"><div class="circle"></div><div><div class="mt">Unit 6 议论文</div><div class="ms">大学英语 · 周五 18:00 截止</div></div><div class="mcount">9</div></div>
+    <div class="mrow"><div class="circle on"></div><div><div class="mt done">实验三：文件读写</div><div class="ms">Python · 周日 23:59 截止</div></div><div class="mcount">12</div></div>
+  </div>
+  <div class="toast" id="toast"><span id="toastText"></span><b id="toastAct"></b></div>
+  <div class="finger" id="finger"></div>
+  <div class="tabbar"><span class="on">作业</span><span>课表</span><span>我的</span></div>`;
+const screen = document.getElementById('screen');
+let timers = [];
+const at = (ms, fn) => timers.push(setTimeout(fn, ms));
+const $ = (id) => document.getElementById(id);
+
+function toast(text, act) {
+  $('toastText').textContent = text; $('toastAct').textContent = act;
+  $('toast').classList.add('show');
+}
+function startPhone() {
+  timers.forEach(clearTimeout); timers = [];
+  screen.innerHTML = SCREEN;
+  if (!on('phone') || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const c1 = $('c1'), t1 = $('t1'), finger = $('finger');
+  at(1600, () => {
+    // 手指移到第一条的小圈上
+    const r = c1.getBoundingClientRect(), s = screen.getBoundingClientRect();
+    finger.style.left = (r.left - s.left - 5) + 'px'; finger.style.top = (r.top - s.top - 5) + 'px';
+    finger.classList.add('show');
+  });
+  at(2300, () => { finger.classList.add('tap'); c1.classList.add('on'); c1.style.transform = 'scale(1.2)'; });
+  at(2500, () => { c1.style.transform = ''; finger.classList.remove('tap'); t1.classList.add('striking'); requestAnimationFrame(() => t1.classList.add('go')); });
+  at(2900, () => finger.classList.remove('show'));
+  at(3300, () => { const b = $('todayBlock'); b.style.maxHeight = '0'; b.style.opacity = '0'; $('left').textContent = '3'; toast('「习题 3.2」已完成', '撤销'); });
+  at(5200, () => $('toast').classList.remove('show'));
+  at(5900, () => {
+    // 有同学传了一条新作业，滑进「明天」
+    const row = document.createElement('div');
+    row.className = 'mrow newrow';
+    row.innerHTML = '<div class="circle"></div><div><div class="mt">第五章习题<span class="pill">新</span></div><div class="ms">概率论 · 明天 23:59 截止 · 小林刚刚传的</div></div><div class="mcount">1</div>';
+    $('tomorrow').prepend(row);
+    $('left').textContent = '4';
+    toast('概率论有新作业：第五章习题', '看看');
+    at(2600, () => { row.classList.add('settled'); $('toast').classList.remove('show'); });
+  });
+  at(11000, startPhone);
+}
+startPhone();
+
+// ---------- 4 手机跟着鼠标倾斜 ----------
+const phone = $('phone');
+addEventListener('pointermove', (e) => {
+  if (!on('tilt') || e.pointerType !== 'mouse' || innerWidth < 820) { phone.style.transform = ''; return; }
+  const r = phone.getBoundingClientRect();
+  const x = (e.clientX - (r.left + r.width / 2)) / innerWidth, y = (e.clientY - (r.top + r.height / 2)) / innerHeight;
+  phone.style.transform = `rotateY(${x * 14}deg) rotateX(${-y * 10}deg)`;
+});
+document.addEventListener('pointerleave', () => { phone.style.transform = ''; });
+
+// ---------- 6 往下翻时浮现 + 7 卡片小动画 ----------
+const io = new IntersectionObserver((entries) => {
+  for (const e of entries) {
+    if (!e.isIntersecting) continue;
+    const el = e.target;
+    // 同一排的卡片一个接一个出来
+    const i = [...el.parentElement.children].indexOf(el);
+    setTimeout(() => el.classList.add('in'), el.classList.contains('card') ? i * 110 : 0);
+    if (el.dataset.demo) setTimeout(() => playCard(el), 350 + i * 110);
+    io.unobserve(el);
+  }
+}, { threshold: 0.25 });
+document.querySelectorAll('.reveal').forEach((el) => io.observe(el));
+
+function playCard(card) {
+  if (!on('cards')) { card.classList.add('played'); return; }
+  const kind = card.dataset.demo;
+  if (kind === 'upload' || kind === 'notify') { card.classList.add('played'); return; }
+  if (kind === 'vote') {
+    const agree = card.querySelector('.agree'), status = card.querySelector('.status'), from = card.querySelector('.from');
+    card.classList.add('played');
+    agree.textContent = '0';
+    setTimeout(() => (agree.textContent = '1'), 500);
+    setTimeout(() => (agree.textContent = '2'), 1000);
+    setTimeout(() => { status.textContent = '已生效 ✓'; status.style.color = '#4f7a4f'; from.classList.add('old'); }, 1500);
+  }
+  if (kind === 'chat') {
+    const reply = card.querySelector('.reply');
+    const keep = reply.innerHTML;
+    reply.innerHTML = '<span class="typing"><i></i><i></i><i></i></span>';
+    card.classList.add('played');
+    setTimeout(() => (reply.innerHTML = keep), 1700);
+  }
+}
+
+// ---------- 8 数字滚动 ----------
+if (on('count')) {
+  document.querySelectorAll('.stats b').forEach((b, i) => {
+    const unit = b.textContent.replace(/\d+/, ''), n = +b.dataset.n;
+    let k = 0;
+    const id = setInterval(() => {
+      b.textContent = (k++ < 10 + i * 4 ? Math.floor(Math.random() * 10) : n) + unit;
+      if (k > 10 + i * 4) clearInterval(id);
+    }, 60);
+  });
+}
+
+// ---------- 10 顶栏吸顶 ----------
+const nav = $('navwrap');
+addEventListener('scroll', () => nav.classList.toggle('stuck', scrollY > 30), { passive: true });
+</script>
+</body>
+</html>

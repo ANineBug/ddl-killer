@@ -66,6 +66,8 @@ npx expo prebuild --platform android --no-install
 
 1.0.2 已合入 main 的翻页实现：根布局保留 `GestureHandlerRootView`，三个标签页均使用 `TabScrollView` 与分页手势同时识别；课表页不额外处理横向手势。依赖保留 WebView 以及 gesture-handler、Reanimated、Worklets，锁文件由解决后的 package.json 运行 npm install 生成。新增原生模块必须随新版 APK 安装，不能只更新 JS。请同时验证先纵向滚动再横滑、斜向滚动不误翻和底部标签点击切换。
 
+之后的改动：整页左右翻页已取消，页面之间只能点底部标签。横向手势改为作业行划走完成、课表左右滑翻周，说明见 `docs/HANDOFF.md` 第 7 节。
+
 1. 校外：统一身份认证 → WebVPN 门户 → 教务登录 → 个人课表。确认 cookie、window.open、验证码及跳转。
 2. 重新点击查询后，检查概率论的周一 / 周五是否获得同一个 jxb_id，确认所有课程的字段覆盖率。
 3. 验证教学班编号能关联创新程序设计实践的三个阶段教师，不能仅凭课名推断。

@@ -10,7 +10,7 @@
 
 - **是什么**：西南财经大学（成都）学生用的作业聚合和 DDL 提醒 app。同学上传作业，同一教学班的人都能看到。目前只做安卓，只打 arm64。
 - **现状**：纯前端，没有后端。数据存在手机本地（AsyncStorage），演示数据在 `src/data/mock.ts`。
-- **仓库**：`ANineBug/homework-app`（私有），主分支 `main`。
+- **仓库**：`ANineBug/ddl-killer`（公开），主分支 `main`。app 名字叫「DDL斩」。
 - **技术栈**：Expo SDK 58、React Native 0.88、React 19.3、TypeScript、Expo Router（路由在 `src/app/`，`@/` 指向 `src/`）。
 
 ### 必须遵守（来自 `AGENTS.md`）
@@ -28,7 +28,7 @@
 src/
   app/                    路由（每个文件就是一个页面）
     _layout.tsx           根布局：Store → Theme → Toast → 导航
-    (tabs)/_layout.tsx    底部三个标签 + 左右滑动翻页（别轻易动，见第 7 节）
+    (tabs)/_layout.tsx    底部三个标签（只能点，不能左右滑）
     (tabs)/index.tsx      作业首页
     (tabs)/timetable.tsx  课表（周视图）
     (tabs)/me.tsx         我的
@@ -137,7 +137,7 @@ type Course = {
 
 ## 7. 容易踩坑、别弄坏的地方
 
-- **底部标签的左右滑动**（`(tabs)/_layout.tsx`）：三页并排跟手滑，点标签时淡入。里面用 `router.prefetch` 预加载三页，并且「动画结束后才切路由」，这是为了绕开网页端的一个动画中断问题。在课表页加横向手势（比如左右滑动翻周）会和它冲突，要先和负责人商量。
+- **横向手势归页面自己用**：页面之间只能点底部标签切换，不再左右滑整页。作业页里左右划一行是完成（已完成的是恢复），组件在 `src/components/SwipeRow.tsx`；课表页左右滑是翻周，在 `(tabs)/timetable.tsx`，每一周是一页，位置只跟第几周有关。两处都用 gesture-handler 和 Reanimated 在界面线程上跑。标签页里的滚动区域要用 `TabScrollView`，横向手势才能和上下滚动互相让路。
 - **WebView 登录**：如果用 `react-native-webview`，它是原生模块。装了以后**必须重新打 APK**才能在手机上用，而且**网页预览里跑不了**。最好给网页预览留一个假数据入口，方便调界面。
 - **账号安全**：用户的教务账号和密码只能在学校自己的登录页里输入。app 不要读取、保存或上传密码，cookie 也不要持久化到我们自己的存储里。
 - **网页预览的两个假问题**：

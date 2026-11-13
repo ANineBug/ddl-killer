@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "作业",
+    "name": "DDL斩",
     "slug": "homework-app",
     "version": "1.0.2",
     "orientation": "portrait",
@@ -11,14 +11,20 @@
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
+        "backgroundColor": "#faf9f5",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
       "package": "xyz.ninebug.homework",
-      "versionCode": 3
+      "versionCode": 5,
+      "permissions": [
+        "android.permission.SCHEDULE_EXACT_ALARM"
+      ],
+      "blockedPermissions": [
+        "android.permission.RECORD_AUDIO"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png",
@@ -26,7 +32,13 @@
     },
     "plugins": [
       "expo-router",
-      "./plugins/withSwufeCleartext"
+      "./plugins/withSwufeCleartext",
+      [
+        "expo-notifications",
+        {
+          "color": "#c2603e"
+        }
+      ]
     ],
     "scheme": "homeworkapp",
     "experiments": {
