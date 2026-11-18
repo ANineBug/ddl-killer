@@ -11,9 +11,10 @@ import { useTheme } from '@/theme/useTheme';
 
 type IconName = ComponentProps<typeof Ionicons>['name'];
 
-const tabs: { name: string; href: '/' | '/timetable' | '/me'; label: string; icon: IconName; iconActive: IconName }[] = [
+const tabs: { name: string; href: '/' | '/timetable' | '/lobby' | '/me'; label: string; icon: IconName; iconActive: IconName }[] = [
   { name: 'index', href: '/', label: '作业', icon: 'document-text-outline', iconActive: 'document-text' },
   { name: 'timetable', href: '/timetable', label: '课表', icon: 'calendar-clear-outline', iconActive: 'calendar-clear' },
+  { name: 'lobby', href: '/lobby', label: '聊天', icon: 'chatbubbles-outline', iconActive: 'chatbubbles' },
   { name: 'me', href: '/me', label: '我的', icon: 'person-circle-outline', iconActive: 'person-circle' },
 ];
 
@@ -106,9 +107,9 @@ function TabButton({ isFocused, label, icon, iconActive, onPress, ...props }: Ta
   );
 }
 
-const BAR_W = 260;
-const TAB_W = BAR_W / 3;
-const INDICATOR_W = 70;
+const BAR_W = 320;
+const TAB_W = BAR_W / tabs.length;
+const INDICATOR_W = 66;
 
 const styles = StyleSheet.create({
   indicator: {

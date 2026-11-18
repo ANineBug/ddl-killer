@@ -7,7 +7,7 @@ import { login, logout, register, requestCode, resetPassword, userFromToken } fr
 import { addAttachment, getFile, removeAttachment } from './attachments.ts';
 import { deleteAvatar, getAvatar, setAvatar, userRef } from './avatar.ts';
 import { classBoard, globalBoard } from './board.ts';
-import { adminDeleteMessage, listMessages, MessageIn, sendMessage } from './chat.ts';
+import { adminDeleteMessage, listLobby, listMessages, LobbyIn, MessageIn, sendLobby, sendMessage } from './chat.ts';
 import { getClass, ImportIn, importTimetable, joinClass, leaveClass, myClasses, resolveTimetable, searchClasses } from './classes.ts';
 import { type Ctx, forbidden, HttpError, type User } from './context.ts';
 import { FeedbackIn, sendFeedback } from './feedback.ts';
@@ -264,6 +264,17 @@ export function createApp(ctx: Ctx) {
   app.post('/classes/:id/messages', async (c) => {
     const u = need(c);
     return c.json(await sendMessage(ctx, u, idParam(c), await body(c, MessageIn)), 201);
+  });
+
+  // 总聊天室：登录后才能看和发
+  app.get('/lobby/messages', async (c) => {
+    need(c);
+    const num = (v: string | undefined) => (v === undefined ? undefined : Number(v));
+    return c.json({ messages: await listLobby(ctx, { after: num(c.req.query('after')), before: num(c.req.query('before')) }) });
+  });
+  app.post('/lobby/messages', async (c) => {
+    const u = need(c);
+    return c.json(await sendLobby(ctx, u, await body(c, LobbyIn)), 201);
   });
 
   // ---------- 管理员 ----------

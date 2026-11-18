@@ -70,3 +70,50 @@ test('总分榜分总榜、月榜、周榜：周一 0 点、每月 1 号 0 点�
   assert.equal((await s.call('GET', '/board?period=year', a)).data.period, 'all');
   await s.close();
 });
+
+test('总聊天室：登录才能看和发；不分班，谁都能看到；和班级聊天共用 5 秒间隔；不显示档位', async () => {
+  const s = await setup();
+  const { tokens: [a], classId } = await classWith(s, 2);
+  const out = await s.login('lobby@qq.com');
+  assert.equal((await s.call('GET', '/lobby/messages')).status, 401);
+  assert.equal((await s.call('POST', '/lobby/messages', undefined, { text: '大家好' })).status, 401);
+
+  const m1 = await s.call('POST', '/lobby/messages', out, { text: '  大家好  ' });
+  assert.equal(m1.status, 201);
+  assert.equal(m1.data.text, '大家好');
+  assert.equal(m1.data.user.tierName, null);
+  assert.equal((await s.call('POST', '/lobby/messages', out, { text: '   ' })).status, 400);
+  assert.equal((await s.call('POST', '/lobby/messages', out, { text: '字'.repeat(501) })).status, 400);
+
+  // 在班里刚发过，大厅里也要等 5 秒
+  assert.equal((await s.call('POST', `/classes/${classId}/messages`, a, { text: '班里' })).status, 201);
+  assert.equal((await s.call('POST', '/lobby/messages', a, { text: '大厅' })).status, 429);
+  s.tick(5000);
+  const m2 = await s.call('POST', '/lobby/messages', a, { text: '大厅' });
+  assert.equal(m2.status, 201);
+
+  // 大厅只有大厅的消息，班里的消息不会混进来，反过来也一样
+  const lobby = await s.call('GET', '/lobby/messages', out);
+  assert.deepEqual(lobby.data.messages.map((m: any) => m.text), ['大家好', '大厅']);
+  assert.equal((await s.call('GET', `/lobby/messages?after=${m1.data.id}`, out)).data.messages.length, 1);
+  const cls = await s.call('GET', `/classes/${classId}/messages`, a);
+  assert.deepEqual(cls.data.messages.map((m: any) => m.text), ['班里']);
+  await s.close();
+});
+
+test('总聊天室：被降级的账号只能看不能发；管理员删的消息看不到', async () => {
+  const s = await setup();
+  const admin = await s.login('admin@qq.com');
+  const bad = await s.login('bad@qq.com');
+  await s.db.query("update users set is_admin = true where email = 'admin@qq.com'");
+  const msg = await s.call('POST', '/lobby/messages', bad, { text: '广告' });
+  const badId = (await s.call('GET', '/me', bad)).data.id;
+  assert.equal((await s.call('DELETE', `/admin/messages/${msg.data.id}`, admin)).status, 200);
+  assert.equal((await s.call('GET', '/lobby/messages', admin)).data.messages.length, 0);
+  assert.equal((await s.call('POST', `/admin/users/${badId}/demote`, admin, { demoted: true })).status, 200);
+  s.tick(5000);
+  const muted = await s.call('POST', '/lobby/messages', bad, { text: '再来' });
+  assert.equal(muted.status, 403);
+  assert.equal((await s.call('GET', '/lobby/messages', bad)).status, 200);
+  await s.close();
+});

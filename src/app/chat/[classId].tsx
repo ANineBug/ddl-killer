@@ -1,15 +1,14 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { type ComponentRef, useEffect, useRef, useState } from 'react';
-import { KeyboardAvoidingView, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { KeyboardAvoidingView, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { ChatMessage } from '@/api/types';
-import { Avatar } from '@/components/Avatar';
+import { ChatBubble, ChatInput } from '@/components/Chat';
 import { haptic } from '@/components/haptic';
 import { useToast } from '@/components/Toast';
 import { Backdrop, closeModal, Press, Txt } from '@/components/ui';
-import { formatDue, hhmm, isTbd } from '@/data/format';
 import { errorText, useOnline } from '@/data/online';
 import { localHomeworkId } from '@/data/remote';
 import { useStore } from '@/data/store';
@@ -122,7 +121,7 @@ export default function Chat() {
             </Txt>
           ) : null}
           {list.map((m) => (
-            <Bubble key={m.id} m={m} mine={m.user.id === me} />
+            <ChatBubble key={m.id} m={m} mine={m.user.id === me} />
           ))}
         </ScrollView>
       )}
@@ -140,72 +139,10 @@ export default function Chat() {
               </Press>
             </View>
           )}
-          <View style={styles.inputRow}>
-            <TextInput
-              value={text}
-              onChangeText={setText}
-              placeholder="说点什么…"
-              placeholderTextColor={theme.faint}
-              maxLength={500}
-              multiline
-              style={[styles.input, { color: theme.text, backgroundColor: theme.card, borderColor: theme.line }]}
-            />
-            <Press
-              onPress={sendNow}
-              disabled={busy || (!text.trim() && !sharing)}
-              style={[styles.send, { backgroundColor: theme.text, opacity: busy || (!text.trim() && !sharing) ? 0.3 : 1 }]}>
-              <Ionicons name="arrow-up" size={18} color={theme.onText} />
-            </Press>
-          </View>
+          <ChatInput value={text} onChange={setText} onSend={sendNow} canSend={!busy && (!!text.trim() || !!sharing)} />
         </View>
       )}
     </KeyboardAvoidingView>
-  );
-}
-
-function Bubble({ m, mine }: { m: ChatMessage; mine: boolean }) {
-  const { theme } = useTheme();
-  const { homework } = useStore();
-  const online = useOnline();
-  const local = m.homework ? homework.find((h) => h.id === localHomeworkId(m.homework!.id)) : undefined;
-  const due = m.homework?.due ? new Date(m.homework.due) : null;
-  return (
-    <View style={[styles.msg, mine && { flexDirection: 'row-reverse' }]}>
-      <Avatar user={m.user} size={30} />
-      <View style={{ maxWidth: '78%', alignItems: mine ? 'flex-end' : 'flex-start' }}>
-        {!mine && (
-          <Txt variant="caption" tone="faint" style={{ marginBottom: 3 }}>
-            {m.user.nickname} · {m.user.tierName}
-          </Txt>
-        )}
-        <View style={[styles.bubble, { backgroundColor: mine ? theme.accentSoft : theme.card, borderColor: mine ? 'transparent' : theme.cardEdge }]}>
-          {m.text ? <Txt style={{ lineHeight: 21 }}>{m.text}</Txt> : null}
-          {m.homework && (
-            <Press
-              onPress={() => local && router.push(`/homework/${local.id}`)}
-              style={[styles.card, { borderColor: theme.line, marginTop: m.text ? 8 : 0 }]}>
-              <Txt variant="sub" numberOfLines={1} style={{ fontWeight: '600' }}>
-                {m.homework.title}
-              </Txt>
-              <Txt variant="caption" tone="sub" style={{ marginTop: 2 }}>
-                {!due || isTbd(due) ? '截止待定' : `${formatDue(due)} 截止`}
-              </Txt>
-              {/* 在聊天里发现作业写错了，直接从这里提修改 */}
-              {local && online.loggedIn && (
-                <Press onPress={() => router.push(`/report?id=${local.id}`)} hitSlop={6} style={{ marginTop: 6 }}>
-                  <Txt variant="caption" tone="accent">
-                    发起纠错 ›
-                  </Txt>
-                </Press>
-              )}
-            </Press>
-          )}
-        </View>
-        <Txt variant="caption" tone="faint" style={{ marginTop: 3, fontSize: 10 }}>
-          {hhmm(new Date(m.createdAt))}
-        </Txt>
-      </View>
-    </View>
   );
 }
 
@@ -213,12 +150,6 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingBottom: 10, borderBottomWidth: StyleSheet.hairlineWidth },
   icon: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  msg: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
-  bubble: { borderRadius: 16, borderWidth: StyleSheet.hairlineWidth, paddingHorizontal: 12, paddingVertical: 9 },
-  card: { borderWidth: 1, borderRadius: 12, padding: 10, minWidth: 180 },
   composer: { paddingHorizontal: 12, paddingTop: 10, borderTopWidth: StyleSheet.hairlineWidth, gap: 8 },
   sharing: { flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderStyle: 'dashed', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 6 },
-  inputRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 8 },
-  input: { flex: 1, minHeight: 40, maxHeight: 120, borderWidth: 1, borderRadius: 20, paddingHorizontal: 14, paddingTop: 10, paddingBottom: 10, fontSize: 15 },
-  send: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
 });

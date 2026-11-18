@@ -275,6 +275,12 @@ export function useOnline() {
     (classId: number, text: string, homeworkId?: number) => api<ChatMessage>(`/classes/${classId}/messages`, { method: 'POST', body: { text, homeworkId } }),
     [],
   );
+  // 总聊天室：全校登录的同学都能看、能发
+  const lobbyMessages = useCallback(
+    (after?: number) => api<{ messages: ChatMessage[] }>(`/lobby/messages${after ? `?after=${after}` : ''}`).then((r) => r.messages),
+    [],
+  );
+  const lobbySend = useCallback((text: string) => api<ChatMessage>('/lobby/messages', { method: 'POST', body: { text } }), []);
   const classBoard = useCallback((classId: number) => api<{ board: BoardRow[] }>(`/classes/${classId}/board`).then((r) => r.board), []);
   // 总分榜：总榜 / 月榜 / 周榜
   const globalBoard = useCallback((period: 'all' | 'month' | 'week' = 'all') => api<GlobalBoard>(`/board?period=${period}`), []);
@@ -317,7 +323,7 @@ export function useOnline() {
     [account, addJoinedCourse, sync, timetable.term, setTimetable],
   );
 
-  return { loggedIn: !!account, account, link, sync, refresh, requestCode, login, register, resetPassword, logout, rename, feedback, me, upload, edit, remove, attach, detach, reload, react, detail, propose, vote, adopt, withdraw, voteDuplicate, messages, send, classBoard, globalBoard, setAvatar, leave, search, join };
+  return { loggedIn: !!account, account, link, sync, refresh, requestCode, login, register, resetPassword, logout, rename, feedback, me, upload, edit, remove, attach, detach, reload, react, detail, propose, vote, adopt, withdraw, voteDuplicate, messages, send, lobbyMessages, lobbySend, classBoard, globalBoard, setAvatar, leave, search, join };
 }
 
 export { ApiError, localHomeworkId };

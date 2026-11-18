@@ -90,7 +90,8 @@ export type RemoteDetail = RemoteHomework & {
 
 export type ChatMessage = {
   id: number;
-  user: UserRef & { tier: Tier; tierName: string };
+  // 总聊天室里不显示档位（档位是按班算的），这两项是 null
+  user: UserRef & { tier: Tier | null; tierName: string | null };
   text: string;
   homework: { id: number; title: string; due: string | null } | null;
   createdAt: string;

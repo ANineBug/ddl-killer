@@ -6,7 +6,8 @@ import { type Ctx, HttpError, notFound, type User } from './context.ts';
 import type { Db } from './db.ts';
 import { CHAT_INTERVAL_MS, TIER_NAMES } from './rules.ts';
 
-// 每个教学班一个聊天室：只有文字，可以带一张作业卡片。游客不能看也不能发
+// 每个教学班一个聊天室：只有文字，可以带一张作业卡片。游客不能看也不能发。
+// 另外还有一个全校的总聊天室（大厅），在文件最后
 
 export const MessageIn = z.object({
   text: z.string().trim().max(500).default(''),
@@ -62,19 +63,21 @@ export async function listMessages(ctx: Ctx, user: User, classId: number, opts: 
   return shape(ctx.db, classId, rows);
 }
 
+// 班级聊天和大厅共用一个发言间隔：5 秒一条
+async function checkInterval(db: Db, userId: number, now: Date) {
+  const last = await db.one<{ created_at: Date }>('select created_at from messages where user_id = $1 order by created_at desc limit 1', [userId]);
+  if (last && now.getTime() - last.created_at.getTime() < CHAT_INTERVAL_MS) {
+    const wait = Math.ceil((CHAT_INTERVAL_MS - (now.getTime() - last.created_at.getTime())) / 1000);
+    throw new HttpError(429, 'slow_down', `发得有点快，${wait} 秒后再发`, { retryAfter: wait });
+  }
+}
+
 export async function sendMessage(ctx: Ctx, user: User, classId: number, input: z.infer<typeof MessageIn>) {
   const now = ctx.now();
   return ctx.db.tx(async (db) => {
     await requireMember(db, classId, user.id);
     if (!input.text && !input.homeworkId) throw new HttpError(400, 'empty', '说点什么吧');
-    const last = await db.one<{ created_at: Date }>(
-      'select created_at from messages where user_id = $1 order by created_at desc limit 1',
-      [user.id],
-    );
-    if (last && now.getTime() - last.created_at.getTime() < CHAT_INTERVAL_MS) {
-      const wait = Math.ceil((CHAT_INTERVAL_MS - (now.getTime() - last.created_at.getTime())) / 1000);
-      throw new HttpError(429, 'slow_down', `发得有点快，${wait} 秒后再发`, { retryAfter: wait });
-    }
+    await checkInterval(db, user.id, now);
     if (input.homeworkId) {
       const h = await db.one<{ class_id: number }>('select class_id from homework where id = $1', [input.homeworkId]);
       if (!h || h.class_id !== classId) throw notFound('作业');
@@ -91,4 +94,47 @@ export async function sendMessage(ctx: Ctx, user: User, classId: number, input: 
 // 管理员删消息：只做标记，不真删
 export async function adminDeleteMessage(ctx: Ctx, id: number) {
   await ctx.db.query('update messages set deleted_at = $2 where id = $1', [id, ctx.now()]);
+}
+
+// ---------- 总聊天室（大厅） ----------
+// 全校登录的同学都能看、能发，只有文字（作业属于各自的班，大厅里不分享作业卡片）。
+// 大厅里不显示档位：档位是按班算的。被管理员降级的账号只能看、不能发
+
+export const LobbyIn = z.object({ text: z.string().trim().min(1, '说点什么吧').max(500, '最多 500 个字') });
+
+function shapeLobby(rows: MsgRow[]) {
+  return rows.map((m) => ({
+    id: m.id,
+    user: { ...userRef(m.user_id, m.nickname, m.avatar_version), tier: null, tierName: null },
+    text: m.text,
+    homework: null,
+    createdAt: m.created_at,
+  }));
+}
+
+export async function listLobby(ctx: Ctx, opts: { after?: number; before?: number }) {
+  let rows: MsgRow[];
+  if (opts.after !== undefined) {
+    rows = await ctx.db.query<MsgRow>(`${SELECT} where m.class_id is null and m.deleted_at is null and m.id > $1 order by m.id limit 100`, [opts.after]);
+  } else {
+    rows = await ctx.db.query<MsgRow>(`${SELECT} where m.class_id is null and m.deleted_at is null and m.id < $1 order by m.id desc limit 50`, [
+      opts.before ?? 2_147_483_647,
+    ]);
+    rows.reverse();
+  }
+  return shapeLobby(rows);
+}
+
+export async function sendLobby(ctx: Ctx, user: User, input: z.infer<typeof LobbyIn>) {
+  if (user.demoted) throw new HttpError(403, 'muted', '你的账号暂时不能在总聊天室发言');
+  const now = ctx.now();
+  return ctx.db.tx(async (db) => {
+    await checkInterval(db, user.id, now);
+    const row = await db.one<{ id: number }>('insert into messages (class_id, user_id, text, created_at) values (null, $1, $2, $3) returning id', [
+      user.id,
+      input.text,
+      now,
+    ]);
+    return shapeLobby(await db.query<MsgRow>(`${SELECT} where m.id = $1`, [row!.id]))[0];
+  });
 }
