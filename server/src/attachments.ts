@@ -52,6 +52,7 @@ export async function attachmentsFor(db: Db, homeworkIds: number[]) {
   return map;
 }
 
+// 上传者随时可以加、删附件。作业被确认以后再动附件，会记进改动记录
 async function editableHomework(db: Db, user: User, homeworkId: number) {
   await db.query('select id from homework where id = $1 for update', [homeworkId]);
   const h = await db.one<{ uploader_id: number; confirmed_at: Date | null; status: string }>(
@@ -60,7 +61,16 @@ async function editableHomework(db: Db, user: User, homeworkId: number) {
   );
   if (!h || h.status === 'deleted') throw notFound('作业');
   if (h.uploader_id !== user.id) throw forbidden('只有上传的人能加、删附件');
-  if (h.confirmed_at) throw forbidden('已经有同学确认过了，附件不能再改；要补充请点「有问题」');
+  return { confirmed: !!h.confirmed_at };
+}
+
+async function logAttachment(db: Db, homeworkId: number, userId: number, from: string | null, to: string | null, now: Date) {
+  await db.query('insert into homework_changes (homework_id, proposal_id, user_id, changes, created_at) values ($1, null, $2, $3, $4)', [
+    homeworkId,
+    userId,
+    JSON.stringify({ attachment: { from, to } }),
+    now,
+  ]);
 }
 
 export async function addAttachment(ctx: Ctx, user: User, homeworkId: number, rawName: string, bytes: Uint8Array) {
@@ -70,7 +80,7 @@ export async function addAttachment(ctx: Ctx, user: User, homeworkId: number, ra
   if (!mime) throw new HttpError(400, 'bad_file', '只支持图片（JPG、PNG、WebP）、PDF 和 Word（docx）');
 
   return ctx.db.tx(async (db) => {
-    await editableHomework(db, user, homeworkId);
+    const { confirmed } = await editableHomework(db, user, homeworkId);
     const n = await db.one<{ n: number }>('select count(*)::int n from attachments where homework_id = $1', [homeworkId]);
     if ((n?.n ?? 0) >= ATTACHMENTS_PER_HOMEWORK) throw new HttpError(400, 'too_many', `一条作业最多 ${ATTACHMENTS_PER_HOMEWORK} 个附件`);
     const row = {
@@ -84,16 +94,18 @@ export async function addAttachment(ctx: Ctx, user: User, homeworkId: number, ra
       [row.key, homeworkId, user.id, row.name, row.mime, row.size, bytes, ctx.now()],
     );
     await db.query('update homework set updated_at = $2 where id = $1', [homeworkId, ctx.now()]);
+    if (confirmed) await logAttachment(db, homeworkId, user.id, null, row.name, ctx.now());
     return view(row);
   });
 }
 
 export async function removeAttachment(ctx: Ctx, user: User, key: string) {
   return ctx.db.tx(async (db) => {
-    const a = await db.one<{ id: number; homework_id: number }>('select id, homework_id from attachments where key = $1', [key]);
+    const a = await db.one<{ id: number; homework_id: number; name: string }>('select id, homework_id, name from attachments where key = $1', [key]);
     if (!a) throw notFound('附件');
-    await editableHomework(db, user, a.homework_id);
+    const { confirmed } = await editableHomework(db, user, a.homework_id);
     await db.query('delete from attachments where id = $1', [a.id]);
+    if (confirmed) await logAttachment(db, a.homework_id, user.id, a.name, null, ctx.now());
     await db.query('update homework set updated_at = $2 where id = $1', [a.homework_id, ctx.now()]);
     return { deleted: true };
   });

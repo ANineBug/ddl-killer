@@ -7,7 +7,8 @@
 | 东西 | 在仓库哪里 | 部署后在哪 |
 |---|---|---|
 | 后端（Node + PostgreSQL） | `main` 分支的 `server/` | `https://ninebug.xyz/v1/...` |
-| 产品网站（纯静态页面） | `main` 分支的 `site/` | `https://ninebug.xyz` |
+| 网页版 app | `main` 分支的 `src/`，用 `scripts/deploy-web.sh` 打包上传 | `https://ninebug.xyz` |
+| 产品介绍和安卓下载（纯静态页面） | `main` 分支的 `site/` | `https://ninebug.xyz/intro/` |
 | 发验证码、邮件提醒 | Resend | 发件人 `DDL斩 <noreply@mail.ninebug.xyz>` |
 
 一台服务器。主域名 `ninebug.xyz` 放产品网站和后端（`www.ninebug.xyz` 自动跳到主域名），副域名 `mail.ninebug.xyz` 只用来发信，不指向服务器。Caddy 负责 https 证书（自动申请、自动续期），按路径分流：`/v1/*` 转给后端的 8787 端口，其余的当静态网站。
@@ -191,7 +192,7 @@ journalctl -u ddl-killer -n 30       # 能看到「后端已启动」
 
 ## 7. Caddy：https 和分流
 
-把 `/etc/caddy/Caddyfile` 整个换成：
+把 `/etc/caddy/Caddyfile` 整个换成仓库里的 [`deploy/Caddyfile`](../deploy/Caddyfile)：
 
 ```caddy
 ninebug.xyz {
@@ -202,9 +203,22 @@ ninebug.xyz {
 		reverse_proxy 127.0.0.1:8787
 	}
 
-	# 产品网站
-	handle {
+	# 产品介绍和安卓下载
+	redir /intro /intro/ 308
+	handle_path /intro/* {
 		root * /opt/ddl-killer/web/site
+		file_server
+	}
+
+	# 网页版 app：文件名带哈希的脚本和资源长期缓存；其余（index.html）每次都问一下有没有新版。
+	# 找不到的路径都交给 index.html，由 app 自己的路由处理（比如直接打开 /homework/s12）
+	handle {
+		root * /opt/ddl-killer/webapp
+		@hashed path /_expo/static/* /assets/*
+		@other not path /_expo/static/* /assets/*
+		header @hashed Cache-Control "public, max-age=31536000, immutable"
+		header @other Cache-Control "no-cache"
+		try_files {path} /index.html
 		file_server
 	}
 
@@ -304,7 +318,11 @@ cd /opt/ddl-killer/backend && sudo -u ddl git pull
 cd server && sudo -u ddl npm ci --omit=dev
 sudo systemctl restart ddl-killer   # 启动时会自动跑新的数据库迁移
 
-# 网站（浅克隆，只取最新一版）
+# 网页版 app：在自己电脑的仓库根目录跑（服务器内存小，不在服务器上打包）
+#   SSH_OPTS="-F ~/.ssh/ddl-config" bash scripts/deploy-web.sh ddl
+# 出问题想退回上一版：sudo mv /opt/ddl-killer/webapp /opt/ddl-killer/webapp.bad && sudo mv /opt/ddl-killer/webapp.old /opt/ddl-killer/webapp
+
+# 产品介绍页（浅克隆，只取最新一版）
 cd /opt/ddl-killer/web && sudo -u ddl git fetch --depth 1 origin main && sudo -u ddl git reset --hard FETCH_HEAD
 ```
 

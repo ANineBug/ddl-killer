@@ -92,9 +92,9 @@ test/                     测试，按业务场景写的，可以当规则说明
 | GET | `/classes/:id/homework` | 所有人 | 作业列表 |
 | POST | `/classes/:id/homework` | 班里的人 | 上传 |
 | GET | `/homework/:id` | 所有人 | 详情，含改动记录、提议、合并进来的条目 |
-| PATCH / DELETE | `/homework/:id` | 上传者，没人确认前 | 直接改 / 删 |
-| POST | `/homework/:id/attachments` | 上传者，没人确认前 | 加附件：请求体就是文件，`X-File-Name` 头放 URL 编码的文件名。图片 / PDF / docx，每个最大 10MB，一条最多 6 个 |
-| DELETE | `/attachments/:key` | 上传者，没人确认前 | 删附件 |
+| PATCH / DELETE | `/homework/:id` | 上传者 | 直接改（随时，不用投票，记进改动记录；确认过的可以 `{ cancel: true }` 改成已取消）/ 删（只能在没人确认前） |
+| POST | `/homework/:id/attachments` | 上传者 | 加附件：请求体就是文件，`X-File-Name` 头放 URL 编码的文件名。图片 / PDF / docx，每个最大 10MB，一条最多 6 个 |
+| DELETE | `/attachments/:key` | 上传者 | 删附件（确认以后加、删附件都记进改动记录） |
 | GET | `/files/:key` | 所有人 | 下载附件。图片和 PDF 直接打开，Word 下载 |
 | POST / DELETE | `/homework/:id/confirm` | 班里的人 | 确认 / 撤回确认 |
 | PUT / DELETE | `/homework/:id/reactions/thumbs` 或 `cry` | 班里的人 | 赞 / 下雨 |
@@ -103,6 +103,7 @@ test/                     测试，按业务场景写的，可以当规则说明
 | POST | `/proposals/:id/adopt` | 上传者 | 采纳 |
 | POST | `/proposals/:id/withdraw` | 提议人 | 撤回 |
 | GET | `/classes/:id/board` | 所有人 | 班级榜 |
+| GET | `/app/latest` | 所有人 | 最新的安卓版本 `{ version, notes, url }`，从 GitHub Release 读，缓存 10 分钟；app 用它提示更新 |
 | GET | `/board?period=…`（all / month / week） | 所有人 | 总分榜：总榜 / 月榜（每月 1 号起）/ 周榜（每周一起），登录了会带上自己的名次 |
 | GET / POST | `/classes/:id/messages` | 班里的人 | 聊天：`?after=` 拿新消息、`?before=` 翻历史 / 发消息 `{ text, homeworkId? }` |
 | GET / POST | `/lobby/messages` | 登录 | 总聊天室：全校登录的同学都能看、能发，只有文字，不显示档位；被降级的账号只能看 |

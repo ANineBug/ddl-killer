@@ -14,6 +14,7 @@ export async function setup() {
     mailer: { send: async (to, subject, text) => void mails.push({ to, subject, text }) },
     secret: 'test',
     feedbackTo: 'dev@example.com',
+    latestRelease: async () => ({ version: '9.9.9', notes: '测试版本', url: 'https://example.com/ddl-killer.apk' }),
   };
   const app = createApp(ctx);
 

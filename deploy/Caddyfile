@@ -1,0 +1,38 @@
+ninebug.xyz {
+	encode zstd gzip
+
+	# app 用的接口
+	handle /v1/* {
+		reverse_proxy 127.0.0.1:8787
+	}
+
+	# 产品介绍和安卓下载
+	redir /intro /intro/ 308
+	handle_path /intro/* {
+		root * /opt/ddl-killer/web/site
+		file_server
+	}
+
+	# 网页版 app：文件名带哈希的脚本和资源长期缓存；其余（index.html）每次都问一下有没有新版。
+	# 找不到的路径都交给 index.html，由 app 自己的路由处理（比如直接打开 /homework/s12）
+	handle {
+		root * /opt/ddl-killer/webapp
+		@hashed path /_expo/static/* /assets/*
+		@other not path /_expo/static/* /assets/*
+		header @hashed Cache-Control "public, max-age=31536000, immutable"
+		header @other Cache-Control "no-cache"
+		try_files {path} /index.html
+		file_server
+	}
+
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+	}
+}
+
+# 打 www 的统一跳回主域名
+www.ninebug.xyz {
+	redir https://ninebug.xyz{uri} permanent
+}

@@ -9,6 +9,7 @@ import { type Db, migrate, pglite, postgres } from './db.ts';
 import { maybeSendDigests } from './digest.ts';
 import { sweep } from './homework.ts';
 import { consoleMailer, resendMailer } from './mailer.ts';
+import { githubLatest } from './release.ts';
 
 // 环境变量（服务器上写在 .env 里，见 README）：
 //   DATABASE_URL    PostgreSQL 连接串。不填就用本机的 PGlite，数据存在 server/.data/
@@ -34,6 +35,7 @@ const ctx: Ctx = {
   mailer: env.RESEND_API_KEY && env.MAIL_FROM ? resendMailer(env.RESEND_API_KEY, env.MAIL_FROM) : consoleMailer(),
   secret: env.SECRET ?? 'dev-secret-only-for-local',
   feedbackTo: env.FEEDBACK_TO || undefined,
+  latestRelease: githubLatest(),
 };
 
 const app = createApp(ctx);

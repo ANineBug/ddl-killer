@@ -75,8 +75,15 @@ export default function ReminderNotice() {
     }
   }
 
+  const web = Platform.OS === 'web';
   return (
-    <ModalScreen title="关于提醒">
+    <ModalScreen title={web ? '邮件提醒' : '关于提醒'}>
+      {web ? (
+        <Txt variant="sub" tone="sub" style={styles.p}>
+          网页版没法像手机 app 那样到点弹提醒。打开邮件提醒，每天早上会把快到期的作业发到你的邮箱；想要到点提醒，可以在「我的 → 获取 App」装安卓版。
+        </Txt>
+      ) : (
+      <>
       <Txt variant="display" style={{ fontSize: 24, lineHeight: 34 }}>
         提醒可能不准时，以下内容你需要知道
       </Txt>
@@ -113,10 +120,12 @@ export default function ReminderNotice() {
           </Txt>
         </Press>
       </Card>
+      </>
+      )}
 
       <Card style={styles.card}>
         <View style={styles.row}>
-          <Txt style={{ fontWeight: '600', flex: 1 }}>办法二：邮件提醒</Txt>
+          <Txt style={{ fontWeight: '600', flex: 1 }}>{web ? '每天早上发邮件' : '办法二：邮件提醒'}</Txt>
           <Switch
             value={!!email}
             onValueChange={toggleEmail}

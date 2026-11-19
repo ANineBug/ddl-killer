@@ -2,7 +2,8 @@
 
 西南财经大学同学一起记作业的安卓 App。一个人上传，同一个教学班的同学都能看到，按截止时间提醒，别再错过 DDL。
 
-- 官网和下载：<https://ninebug.xyz>
+- 网页版：<https://ninebug.xyz>，打开就能用
+- 产品介绍和安卓下载：<https://ninebug.xyz/intro/>
 - 安装包：[最新 Release](https://github.com/ANineBug/ddl-killer/releases/latest)（仅支持 arm64 安卓手机）
 
 ## 能做什么

@@ -10,6 +10,8 @@ export type Ctx = {
   secret: string;
   // 意见反馈发到这个邮箱；不填就只存库
   feedbackTo?: string;
+  // 最新的安卓版本（从 GitHub 读）；测试里换成假的
+  latestRelease?: () => Promise<{ version: string; notes: string; url: string } | null>;
 };
 
 // 接口出错统一抛这个，status 是 HTTP 状态码，code 给 app 判断用，message 直接给用户看

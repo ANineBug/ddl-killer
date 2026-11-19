@@ -1,10 +1,11 @@
 import { DefaultTheme, Stack, ThemeProvider as NavigationThemeProvider } from 'expo-router';
-import { LogBox, View } from 'react-native';
+import { LogBox, Platform, StyleSheet, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { LocalReminders } from '@/components/LocalReminders';
 import { ToastProvider } from '@/components/Toast';
+import { UpdatePrompt } from '@/components/UpdatePrompt';
 import { Backdrop } from '@/components/ui';
 import { OnlineSync } from '@/data/online';
 import { StoreProvider } from '@/data/store';
@@ -35,6 +36,8 @@ export default function RootLayout() {
             <NavigationThemeProvider value={navigationTheme}>
               <View style={{ flex: 1 }}>
                 <Backdrop />
+                {/* 网页版在电脑上打开时，按手机的宽度居中显示 */}
+                <View style={Platform.OS === 'web' ? styles.webFrame : { flex: 1 }}>
                 <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: 'transparent' } }}>
                   <Stack.Screen name="(tabs)" />
                   <Stack.Screen name="homework/[id]" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
@@ -52,6 +55,9 @@ export default function RootLayout() {
                   <Stack.Screen name="archive" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
                   <Stack.Screen name="feedback" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
                 </Stack>
+                </View>
+                {/* 安卓上有新版本时弹框，一天最多一次 */}
+                <UpdatePrompt />
               </View>
             </NavigationThemeProvider>
           </ToastProvider>
@@ -61,3 +67,7 @@ export default function RootLayout() {
     </GestureHandlerRootView>
   );
 }
+
+const styles = StyleSheet.create({
+  webFrame: { flex: 1, width: '100%', maxWidth: 520, alignSelf: 'center' },
+});

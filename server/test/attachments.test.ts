@@ -85,7 +85,7 @@ test('一条作业最多 6 个附件', async () => {
   await s.close();
 });
 
-test('只有上传的人能加、删；有人确认以后就不能再改', async () => {
+test('只有上传的人能加、删；确认以后也能改，但会记进改动记录', async () => {
   const s = await setup();
   const { tokens, id } = await homework(s);
   assert.equal((await attach(s, tokens[1], id, png())).status, 403);
@@ -96,8 +96,13 @@ test('只有上传的人能加、删；有人确认以后就不能再改', async
   // 两个同学确认，作业变成已确认
   await s.call('POST', `/homework/${id}/confirm`, tokens[1]);
   await s.call('POST', `/homework/${id}/confirm`, tokens[2]);
-  assert.equal((await del(tokens[0])).status, 403);
-  assert.equal((await attach(s, tokens[0], id, png())).status, 403);
+  const before = (await s.call('GET', `/homework/${id}`, tokens[1])).data.history.length;
+  assert.equal((await del(tokens[0])).status, 200);
+  assert.equal((await attach(s, tokens[0], id, pdf())).status, 201);
+  const history = (await s.call('GET', `/homework/${id}`, tokens[1])).data.history;
+  assert.equal(history.length, before + 2);
+  assert.equal(history.at(-2).changes.attachment.to, null);
+  assert.equal(history.at(-1).changes.attachment.from, null);
   await s.close();
 });
 

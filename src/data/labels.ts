@@ -31,6 +31,7 @@ const FIELD: Record<string, string> = {
   group_work: '小组作业',
   cancel: '作业取消',
   status: '状态',
+  attachment: '附件',
 };
 
 const DUE_KIND: Record<string, string> = { at: '具体时间', next_class: '下次课前', tbd: '待定' };
@@ -39,7 +40,7 @@ const STATUS: Record<string, string> = { active: '正常', cancelled: '已取消
 export const fieldName = (k: string) => FIELD[k] ?? k;
 
 export function fieldValue(k: string, v: unknown): string {
-  if (v === null || v === undefined || v === '') return k === 'due' ? '待定' : '空';
+  if (v === null || v === undefined || v === '') return k === 'due' ? '待定' : k === 'attachment' ? '无' : '空';
   if (typeof v === 'boolean') return v ? '是' : '否';
   if (k === 'due' && typeof v === 'string') {
     const d = new Date(v);

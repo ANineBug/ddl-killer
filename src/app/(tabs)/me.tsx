@@ -7,11 +7,10 @@ import { ActivityIndicator, Platform, StyleSheet, Switch, TextInput, View } from
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { MyClass } from '@/api/types';
-// 版本号直接读 app.json，网页预览里 expo-constants 给的不准
-import appJson from '../../../app.json';
 import { Avatar } from '@/components/Avatar';
 import { haptic } from '@/components/haptic';
 import { useToast } from '@/components/Toast';
+import { APP_VERSION, canUpdate, checkForUpdate } from '@/components/UpdatePrompt';
 import { TabScreen } from '@/components/TabScreen';
 import { TabScrollView } from '@/components/TabScroll';
 import { Card, Press, Section, Txt } from '@/components/ui';
@@ -228,29 +227,56 @@ export default function MeScreen() {
           </Section>
         )}
 
+        {/* 网页版没法到点弹手机提醒，只有邮件提醒 */}
         <Section title="提醒">
-          <Card>
-            <ToggleRow label="截止前 1 天提醒" value={settings.remindDay} onChange={(v) => setSettings({ remindDay: v })} />
-            <ToggleRow label="截止前 3 小时提醒" value={settings.remindHours} onChange={(v) => setSettings({ remindHours: v })} />
-            <ToggleRow
-              label="夜间免打扰 23:00–7:00"
-              value={settings.quietNight}
-              onChange={(v) => setSettings({ quietNight: v })}
-              last
-            />
-          </Card>
+          {Platform.OS === 'web' ? (
+            <Card>
+              <NavRow label="邮件提醒" onPress={() => router.push('/reminder-notice')} />
+            </Card>
+          ) : (
+            <Card>
+              <ToggleRow label="截止前 1 天提醒" value={settings.remindDay} onChange={(v) => setSettings({ remindDay: v })} />
+              <ToggleRow label="截止前 3 小时提醒" value={settings.remindHours} onChange={(v) => setSettings({ remindHours: v })} />
+              <ToggleRow
+                label="夜间免打扰 23:00–7:00"
+                value={settings.quietNight}
+                onChange={(v) => setSettings({ quietNight: v })}
+                last
+              />
+            </Card>
+          )}
         </Section>
 
         <Section title="更多">
           <Card>
             <NavRow label="每节课几点上课" onPress={() => router.push('/class-times')} />
-            <NavRow label="关于提醒" onPress={() => router.push('/reminder-notice')} divider />
+            {Platform.OS !== 'web' && <NavRow label="关于提醒" onPress={() => router.push('/reminder-notice')} divider />}
             <NavRow label="意见反馈" onPress={() => router.push('/feedback')} divider />
+            {canUpdate && (
+              <NavRow
+                label="检查更新"
+                divider
+                onPress={() => {
+                  checkForUpdate()
+                    .then((found) => !found && toast(`已经是最新版 ${APP_VERSION}`))
+                    .catch((e) => toast(errorText(e)));
+                }}
+              />
+            )}
           </Card>
         </Section>
 
-        <Txt variant="caption" tone="faint" style={{ textAlign: 'center', marginTop: 26 }}>
-          DDL斩 {appJson.expo.version}
+        {/* 网页版：一个小按钮去产品介绍和安卓版下载页 */}
+        {Platform.OS === 'web' && (
+          <Press onPress={() => window.location.assign('/intro/')} style={[styles.getApp, { borderColor: theme.line }]}>
+            <Ionicons name="phone-portrait-outline" size={14} color={theme.sub} />
+            <Txt variant="caption" tone="sub">
+              获取 App
+            </Txt>
+          </Press>
+        )}
+        <Txt variant="caption" tone="faint" style={{ textAlign: 'center', marginTop: Platform.OS === 'web' ? 12 : 26 }}>
+          {Platform.OS === 'web' ? 'DDL斩 网页版' : `DDL斩 ${APP_VERSION}`}
         </Txt>
         {online.loggedIn && (
           <Press
@@ -348,6 +374,7 @@ const styles = StyleSheet.create({
   camera: { position: 'absolute', right: -2, bottom: -2, width: 20, height: 20, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   row: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 13, paddingHorizontal: 16 },
   subRow: { paddingVertical: 11, paddingLeft: 28 },
+  getApp: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'center', marginTop: 26, paddingHorizontal: 14, height: 32, borderRadius: 999, borderWidth: 1 },
   login: { paddingHorizontal: 16, paddingVertical: 7, borderRadius: 999, borderWidth: 1, marginLeft: 10 },
   avatar: { width: 56, height: 56, borderRadius: 28, alignItems: 'center', justifyContent: 'center' },
   nameInput: { fontSize: 20, fontWeight: '600', borderBottomWidth: 1, paddingVertical: 2 },

@@ -32,9 +32,19 @@ test('上传 → 别人确认够门槛 → 已确认，上传者 +10；自己不
   assert.equal(done.data.confirms.current, 2);
   assert.equal(await score(s, classId, a), 10);
 
-  // 确认之后上传者不能再自己改、自己删
-  assert.equal((await s.call('PATCH', `/homework/${id}`, a, { title: '改个名' })).status, 403);
+  // 确认之后上传者还能直接改（不用投票，留改动记录），但不能删；别人不能直接改
+  const edited = await s.call('PATCH', `/homework/${id}`, a, { title: '改个名' });
+  assert.equal(edited.status, 200);
+  assert.equal(edited.data.title, '改个名');
+  assert.equal(edited.data.state, 'confirmed');
+  assert.equal((await s.call('PATCH', `/homework/${id}`, b, { title: '我也改' })).status, 403);
+  const detail = await s.call('GET', `/homework/${id}`, b);
+  assert.deepEqual(detail.data.history.at(-1).changes.title, { from: '第三章习题', to: '改个名' });
+  assert.equal(detail.data.history.at(-1).proposalId, null);
   assert.equal((await s.call('DELETE', `/homework/${id}`, a)).status, 403);
+  // 老师取消了：确认过的作业上传者可以直接改成已取消
+  const cancelled = await s.call('PATCH', `/homework/${id}`, a, { cancel: true });
+  assert.equal(cancelled.data.state, 'cancelled');
   await s.close();
 });
 

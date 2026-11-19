@@ -64,13 +64,14 @@ export default function Upload() {
   const [courseOpen, setCourseOpen] = useState(!preset && courses.length > 0);
   const [title, setTitle] = useState(editing?.title ?? '');
   const [date, setDate] = useState(() => {
-    if (!editing) return dayFromToday(1);
+    // 原来是「待定」的，日期先放明天；不然改成具体时间时会带上待定用的 2099 年
+    if (!editing || isTbd(editing.due)) return dayFromToday(1);
     const d = new Date(editing.due);
     d.setHours(0, 0, 0, 0);
     return d;
   });
   const [calendarOpen, setCalendarOpen] = useState(false);
-  const [time, setTime] = useState(editing ? hhmm(editing.due) : '23:59');
+  const [time, setTime] = useState(editing && !isTbd(editing.due) ? hhmm(editing.due) : '23:59');
   const [timeOpen, setTimeOpen] = useState(false);
   const [submit, setSubmit] = useState<SubmitMethod>(editing?.submit ?? '学习通');
   const [detail, setDetail] = useState(editing?.detail ?? '');

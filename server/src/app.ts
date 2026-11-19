@@ -84,6 +84,8 @@ export function createApp(ctx: Ctx) {
   });
 
   app.get('/health', (c) => c.json({ ok: true }));
+  // 最新的安卓版本：{ version, notes, url }，拿不到时 version 是 null。不用登录
+  app.get('/app/latest', async (c) => c.json((await ctx.latestRelease?.()) ?? { version: null, notes: '', url: null }));
 
   // ---------- 账号 ----------
   // 注册、找回密码要先发验证码；登录只要邮箱 + 密码

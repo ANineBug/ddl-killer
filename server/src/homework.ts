@@ -382,14 +382,15 @@ async function applyChanges(db: Db, h: HwRow, changes: Changes, userId: number, 
   return h.version + 1;
 }
 
-// 还没人确认之前，上传者可以自己改、自己删；确认之后就只能走「有问题」
+// 上传者随时可以直接改，不用投票，每次改动都记进改动记录（谁、什么时候、原 → 现）。
+// 删除只能在还没人确认之前；确认之后作业归全班，老师取消了就直接改成「已取消」
 export async function editHomework(ctx: Ctx, user: User, id: number, changes: Changes) {
   const now = ctx.now();
   return ctx.db.tx(async (db) => {
     const h = await loadHw(db, id, true);
     if (h.uploader_id !== user.id) throw forbidden('只有上传的人能直接修改');
-    if (h.confirmed_at) throw forbidden('已经有同学确认过了，要改请点「有问题」发起提议');
-    if (changes.cancel) throw new HttpError(400, 'bad_input', '还没人确认的作业，传错了直接删掉就好');
+    if (h.status === 'merged') throw new HttpError(400, 'merged', '这条作业已经合并到另一条里了，去那条改');
+    if (changes.cancel && !h.confirmed_at) throw new HttpError(400, 'bad_input', '还没人确认的作业，传错了直接删掉就好');
     await applyChanges(db, h, changes, user.id, null, now);
     return (await views(db, [await loadHw(db, id)], user.id, now))[0];
   });

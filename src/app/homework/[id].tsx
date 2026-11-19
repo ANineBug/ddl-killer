@@ -82,8 +82,10 @@ export default function HomeworkDetail() {
   }
 
   const state = item.remote?.state;
-  const canEdit = !!item.mine && (!item.remote || state === 'pending');
-  const canReport = !!item.remote && state !== 'closed' && state !== 'cancelled' && state !== 'merged' && !canEdit;
+  // 自己传的随时能直接改（留改动记录）；删只能在还没人确认之前
+  const canEdit = !!item.mine && state !== 'merged';
+  const canDelete = !!item.mine && (!item.remote || state === 'pending');
+  const canReport = !!item.remote && state !== 'closed' && state !== 'cancelled' && state !== 'merged' && !canDelete;
 
   function remove() {
     if (!item) return;
@@ -206,14 +208,10 @@ export default function HomeworkDetail() {
         {item.remote?.confirmedOld ? '此作业已修改过，该确认是修改前的确认，可以再确认一次' : '确认的同学越多，这条作业越可信'}
       </Txt>
 
-      {/* 自己传的、还没人确认的可以直接改和删；别的有问题走「有问题」提议，大家同意了才改 */}
+      {/* 自己传的可以直接改（还没人确认时也能删）；别人觉得有问题走「有问题」提议，大家同意了才改 */}
       <View style={styles.actions}>
-        {canEdit && (
-          <>
-            <Action icon="create-outline" label="编辑" onPress={() => router.push(`/upload?id=${item.id}`)} />
-            <Action icon="trash-outline" label="删除" danger onPress={remove} />
-          </>
-        )}
+        {canEdit && <Action icon="create-outline" label="编辑" onPress={() => router.push(`/upload?id=${item.id}`)} />}
+        {canDelete && <Action icon="trash-outline" label="删除" danger onPress={remove} />}
         {canReport && (
           <Action
             icon="flag-outline"
