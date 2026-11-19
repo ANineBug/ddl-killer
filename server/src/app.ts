@@ -119,8 +119,14 @@ export function createApp(ctx: Ctx) {
   // ---------- 我 ----------
   app.get('/me', async (c) => {
     const u = need(c);
-    const row = await ctx.db.one<{ email_digest: boolean }>('select email_digest from users where id = $1', [u.id]);
-    return c.json({ ...userRef(u.id, u.nickname, u.avatar_version), emailDigest: row?.email_digest ?? false, classes: await myClasses(ctx, u) });
+    const row = await ctx.db.one<{ email_digest: boolean; term_starts: Record<string, string> }>('select email_digest, term_starts from users where id = $1', [u.id]);
+    return c.json({
+      ...userRef(u.id, u.nickname, u.avatar_version),
+      emailDigest: row?.email_digest ?? false,
+      termStarts: row?.term_starts ?? {},
+      isAdmin: u.is_admin,
+      classes: await myClasses(ctx, u),
+    });
   });
 
   // 头像：请求体直接是图片本身（Content-Type: image/jpeg 等），最大 2MB。
@@ -155,10 +161,19 @@ export function createApp(ctx: Ctx) {
     // 改昵称、开关邮件提醒，都可以只传其中一样
     const input = await body(
       c,
-      z.object({ nickname: z.string().trim().min(1, '昵称不能为空').max(12, '昵称最多 12 个字').optional(), emailDigest: z.boolean().optional() }),
+      z.object({
+        nickname: z.string().trim().min(1, '昵称不能为空').max(12, '昵称最多 12 个字').optional(),
+        emailDigest: z.boolean().optional(),
+        // 每个学期第一周的周一：整张表一起传，最多 20 个学期
+        termStarts: z
+          .record(z.string().min(1).max(40), z.string().regex(/^\d{4}-\d{2}-\d{2}$/, '日期格式不对'))
+          .refine((m) => Object.keys(m).length <= 20, '学期太多了')
+          .optional(),
+      }),
     );
     if (input.nickname !== undefined) await ctx.db.query('update users set nickname = $2 where id = $1', [u.id, input.nickname]);
     if (input.emailDigest !== undefined) await ctx.db.query('update users set email_digest = $2 where id = $1', [u.id, input.emailDigest]);
+    if (input.termStarts !== undefined) await ctx.db.query('update users set term_starts = $2 where id = $1', [u.id, JSON.stringify(input.termStarts)]);
     const row = await ctx.db.one<{ nickname: string; email_digest: boolean }>('select nickname, email_digest from users where id = $1', [u.id]);
     return c.json({ id: u.id, nickname: row!.nickname, emailDigest: row!.email_digest });
   });
@@ -294,6 +309,14 @@ export function createApp(ctx: Ctx) {
     admin(c);
     await adminDeleteHomework(ctx, idParam(c));
     return c.json({ ok: true });
+  });
+  // 被降级的账号列表，管理员在 app 里可以一个个恢复
+  app.get('/admin/users', async (c) => {
+    admin(c);
+    const rows = await ctx.db.query<{ id: number; nickname: string; avatar_version: number }>(
+      'select id, nickname, avatar_version from users where demoted order by id',
+    );
+    return c.json({ users: rows.map((r) => userRef(r.id, r.nickname, r.avatar_version)) });
   });
   // 降级：这个账号在所有班都按新同学算（权重 0、每天限传 3 条）。demoted=false 恢复
   app.post('/admin/users/:id/demote', async (c) => {

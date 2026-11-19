@@ -14,7 +14,8 @@ export type NewHomework = Pick<Homework, 'courseId' | 'title' | 'detail' | 'due'
 export type NewCourse = Omit<Course, 'id' | 'hue' | 'members'>;
 
 // 登录后的账号：凭证和服务器上的我
-export type Account = { token: string; user: UserRef };
+// admin：这个账号是不是管理员，登录后从服务器拿，决定显不显示管理按钮
+export type Account = { token: string; user: UserRef; admin?: boolean };
 
 type StoreValue = {
   account: Account | null;
@@ -27,6 +28,7 @@ type StoreValue = {
   upsertRemote: (item: Homework) => void;
   // 手动加入教学班后，把这门课加进课表
   addJoinedCourse: (c: Course) => void;
+  restoreCourses: (list: Course[]) => void;
   courses: Course[];
   homework: Homework[];
   profile: Profile;
@@ -147,7 +149,22 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const linkCourses = useCallback((links: Record<string, number>) => {
-    setCourses((list) => list.map((c) => (links[c.id] !== undefined && c.serverClassId !== links[c.id] ? { ...c, serverClassId: links[c.id] } : c)));
+    setCourses((list) => {
+      const linked = list.map((c) => (links[c.id] !== undefined && c.serverClassId !== links[c.id] ? { ...c, serverClassId: links[c.id] } : c));
+      // 本机重新导入了一个之前从服务器恢复的班：留导入的那份，恢复的那份去掉，免得课表里出现两次
+      const taken = new Set(linked.filter((c) => !c.restored && c.serverClassId).map((c) => c.serverClassId));
+      return linked.filter((c) => !(c.restored && taken.has(c.serverClassId)));
+    });
+  }, []);
+
+  // 换设备登录：把服务器上有、本机没有的班补进课表
+  const restoreCourses = useCallback((incoming: Course[]) => {
+    setCourses((list) => {
+      const have = new Set(list.map((c) => c.serverClassId).filter(Boolean));
+      const add = incoming.filter((c) => !have.has(c.serverClassId));
+      if (!add.length) return list;
+      return [...list, ...add.map((c, i) => ({ ...c, hue: (list.length + i) % 5 }))];
+    });
   }, []);
 
   const replaceRemote = useCallback((courseIds: string[], items: Homework[]) => {
@@ -334,6 +351,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       replaceRemote,
       upsertRemote,
       addJoinedCourse,
+      restoreCourses,
       courses,
       homework,
       profile,
@@ -366,6 +384,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       replaceRemote,
       upsertRemote,
       addJoinedCourse,
+      restoreCourses,
       courses,
       homework,
       profile,

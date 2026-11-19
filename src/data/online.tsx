@@ -126,6 +126,7 @@ export function useOnline() {
   );
 
   const me = useCallback(() => api<Me>('/me'), []);
+  const saveTermStarts = useCallback((termStarts: Record<string, string>) => api('/me', { method: 'PATCH', body: { termStarts } }), []);
 
   // ---------- 作业 ----------
 
@@ -275,6 +276,22 @@ export function useOnline() {
     (classId: number, text: string, homeworkId?: number) => api<ChatMessage>(`/classes/${classId}/messages`, { method: 'POST', body: { text, homeworkId } }),
     [],
   );
+  // ---------- 管理员 ----------
+  const adminDeleteMessage = useCallback((id: number) => api(`/admin/messages/${id}`, { method: 'DELETE' }), []);
+  const adminDeleteHomework = useCallback(
+    async (h: Homework) => {
+      await api(`/admin/homework/${h.remote!.id}`, { method: 'DELETE' });
+      removeHomework(h.id);
+    },
+    [removeHomework],
+  );
+  // 降级：这个账号在所有班都按新同学算、不能在总聊天室发言；demoted=false 恢复
+  const adminDemote = useCallback(
+    (userId: number, demoted: boolean) => api(`/admin/users/${userId}/demote`, { method: 'POST', body: { demoted } }),
+    [],
+  );
+  const adminDemotedUsers = useCallback(() => api<{ users: UserRef[] }>('/admin/users').then((r) => r.users), []);
+
   // 总聊天室：全校登录的同学都能看、能发
   const lobbyMessages = useCallback(
     (after?: number) => api<{ messages: ChatMessage[] }>(`/lobby/messages${after ? `?after=${after}` : ''}`).then((r) => r.messages),
@@ -323,19 +340,28 @@ export function useOnline() {
     [account, addJoinedCourse, sync, timetable.term, setTimetable],
   );
 
-  return { loggedIn: !!account, account, link, sync, refresh, requestCode, login, register, resetPassword, logout, rename, feedback, me, upload, edit, remove, attach, detach, reload, react, detail, propose, vote, adopt, withdraw, voteDuplicate, messages, send, lobbyMessages, lobbySend, classBoard, globalBoard, setAvatar, leave, search, join };
+  return { loggedIn: !!account, account, link, sync, refresh, requestCode, login, register, resetPassword, logout, rename, feedback, me, saveTermStarts, isAdmin: !!account?.admin, upload, edit, remove, attach, detach, reload, react, detail, propose, vote, adopt, withdraw, voteDuplicate, messages, send, lobbyMessages, lobbySend, adminDeleteMessage, adminDeleteHomework, adminDemote, adminDemotedUsers, classBoard, globalBoard, setAvatar, leave, search, join };
 }
 
 export { ApiError, localHomeworkId };
 
 // 后台同步：打开 app、登录或退出、导入了新课表、回到前台时，自动和服务器对一遍
+// 服务器上「我加入的班」→ 手机课表里的课。教务导入的和手动加入的分开标，和本机导入的一样参与同步
+function restoredCourses(me: Me): Course[] {
+  return me.classes.map((c) => ({ ...courseFromClass(c, `srv${c.id}`, 0), manual: c.via === 'manual' ? true : undefined, restored: true }));
+}
+
 export function OnlineSync() {
-  const { courses, timetable, account } = useStore();
+  const { courses, timetable, account, restoreCourses, setTimetable, setAccount } = useStore();
   const online = useOnline();
   const ref = useRef(online);
   ref.current = online;
-  const state = useRef({ token: undefined as string | null | undefined, courses });
+  const state = useRef({ token: undefined as string | null | undefined, courses, timetable, account });
   state.current.courses = courses;
+  state.current.timetable = timetable;
+  state.current.account = account;
+  // 这个账号的「每学期第一周」已经和服务器对过一次了，之后本机改了才往上传
+  const startsReady = useRef<string | null>(null);
 
   // 还没挂上教学班的课（刚导入的）；变了才重新认班，认不出来的不会反复请求
   const unlinked = courses
@@ -348,11 +374,45 @@ export function OnlineSync() {
     const changed = state.current.token !== token;
     state.current.token = token;
     const run = async () => {
-      const list = changed || unlinked ? await ref.current.link(state.current.courses, timetable.term, !!token) : state.current.courses;
+      let list = state.current.courses;
+      let term = timetable.term;
+      // 刚登录或刚打开 app：从服务器补回本机没有的班（换手机、网页版登录时课表就回来了），
+      // 顺便对一下每学期第一周、拿到是不是管理员
+      if (token && changed) {
+        const me = await ref.current.me();
+        const have = new Set(list.map((c) => c.serverClassId).filter(Boolean));
+        const add = restoredCourses(me).filter((c) => !have.has(c.serverClassId));
+        if (add.length) {
+          restoreCourses(add);
+          list = [...list, ...add];
+        }
+        const local = state.current.timetable.starts;
+        const starts = { ...me.termStarts, ...local };
+        // 本机还没选学期：选恢复回来的课最多的那个学期
+        if (!term && list.length) {
+          const count = new Map<string, number>();
+          for (const c of list) if (c.source?.term) count.set(c.source.term, (count.get(c.source.term) ?? 0) + 1);
+          term = [...count.entries()].sort((a, b) => b[1] - a[1] || b[0].localeCompare(a[0]))[0]?.[0];
+        }
+        setTimetable({ starts, ...(term && term !== timetable.term ? { term } : {}) });
+        if (JSON.stringify(starts) !== JSON.stringify(me.termStarts)) await ref.current.saveTermStarts(starts).catch(() => {});
+        startsReady.current = token;
+        const a = state.current.account;
+        if (a && a.token === token && a.admin !== me.isAdmin) setAccount({ ...a, admin: me.isAdmin });
+      }
+      list = changed || unlinked ? await ref.current.link(list, term, !!token) : list;
       await ref.current.sync(list);
     };
     run().catch(() => {});
   }, [token, unlinked, timetable.term]);
+
+  // 本机改了某学期的第一周：存到账号上，别的设备登录也能用
+  const startsKey = JSON.stringify(timetable.starts);
+  useEffect(() => {
+    if (!token || startsReady.current !== token) return;
+    ref.current.saveTermStarts(timetable.starts).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [startsKey, token]);
 
   useEffect(() => {
     const sub = AppState.addEventListener('change', (s) => {

@@ -51,7 +51,7 @@ export type RemoteClass = {
 
 export type MyClass = RemoteClass & { via: 'import' | 'manual'; myTier: Tier; myScore: number };
 
-export type Me = UserRef & { classes: MyClass[] };
+export type Me = UserRef & { classes: MyClass[]; emailDigest: boolean; termStarts: Record<string, string>; isAdmin: boolean };
 
 export type ProposalKind = 'correct' | 'update' | 'duplicate' | 'unduplicate';
 

@@ -14,7 +14,8 @@ import { useTheme } from '@/theme/useTheme';
 // 班级聊天和总聊天室共用的两块：一条消息气泡、底部的输入框
 
 // 一条消息：别人的在左边，带昵称（班级聊天还带档位）；自己的在右边。都带头像
-export function ChatBubble({ m, mine }: { m: ChatMessage; mine: boolean }) {
+// onLongPress：管理员长按一条消息，打开管理面板（删消息、降级发消息的人）
+export function ChatBubble({ m, mine, onLongPress }: { m: ChatMessage; mine: boolean; onLongPress?: () => void }) {
   const { theme } = useTheme();
   const { homework } = useStore();
   const online = useOnline();
@@ -29,7 +30,11 @@ export function ChatBubble({ m, mine }: { m: ChatMessage; mine: boolean }) {
             {m.user.tierName ? `${m.user.nickname} · ${m.user.tierName}` : m.user.nickname}
           </Txt>
         )}
-        <View style={[styles.bubble, { backgroundColor: mine ? theme.accentSoft : theme.card, borderColor: mine ? 'transparent' : theme.cardEdge }]}>
+        <Press
+          onLongPress={onLongPress}
+          delayLongPress={400}
+          disabled={!onLongPress && !m.homework}
+          style={[styles.bubble, { backgroundColor: mine ? theme.accentSoft : theme.card, borderColor: mine ? 'transparent' : theme.cardEdge }]}>
           {m.text ? <Txt style={{ lineHeight: 21 }}>{m.text}</Txt> : null}
           {m.homework && (
             <Press
@@ -51,7 +56,7 @@ export function ChatBubble({ m, mine }: { m: ChatMessage; mine: boolean }) {
               )}
             </Press>
           )}
-        </View>
+        </Press>
         <Txt variant="caption" tone="faint" style={{ marginTop: 3, fontSize: 10 }}>
           {hhmm(new Date(m.createdAt))}
         </Txt>

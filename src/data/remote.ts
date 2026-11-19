@@ -40,6 +40,7 @@ export function fromRemote(r: RemoteHomework, courseId: string, previous?: Homew
       remindReady: r.remindReady,
       postponed: r.postponed,
       uploaderCount: r.uploaderCount,
+      uploaderId: r.uploader.id,
       openProposals: r.openProposals,
       source: r.source,
       optional: r.optional,

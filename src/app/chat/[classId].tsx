@@ -5,6 +5,7 @@ import { KeyboardAvoidingView, ScrollView, StyleSheet, View } from 'react-native
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { ChatMessage } from '@/api/types';
+import { useMessageAdmin } from '@/components/AdminSheet';
 import { ChatBubble, ChatInput } from '@/components/Chat';
 import { haptic } from '@/components/haptic';
 import { useToast } from '@/components/Toast';
@@ -32,6 +33,13 @@ export default function Chat() {
   const scroll = useRef<ComponentRef<typeof ScrollView>>(null);
   const last = useRef(0);
   const me = online.account?.user.id;
+  const admin = useMessageAdmin({
+    isAdmin: online.isAdmin,
+    me,
+    deleteMessage: online.adminDeleteMessage,
+    demote: online.adminDemote,
+    onDeleted: (id) => setList((old) => old.filter((x) => x.id !== id)),
+  });
 
   function append(items: ChatMessage[]) {
     if (!items.length) return;
@@ -121,7 +129,7 @@ export default function Chat() {
             </Txt>
           ) : null}
           {list.map((m) => (
-            <ChatBubble key={m.id} m={m} mine={m.user.id === me} />
+            <ChatBubble key={m.id} m={m} mine={m.user.id === me} onLongPress={admin.onLongPress(m)} />
           ))}
         </ScrollView>
       )}
@@ -142,6 +150,7 @@ export default function Chat() {
           <ChatInput value={text} onChange={setText} onSend={sendNow} canSend={!busy && (!!text.trim() || !!sharing)} />
         </View>
       )}
+      {admin.sheet}
     </KeyboardAvoidingView>
   );
 }

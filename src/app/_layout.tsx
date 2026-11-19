@@ -54,6 +54,7 @@ export default function RootLayout() {
                   <Stack.Screen name="class-times" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
                   <Stack.Screen name="archive" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
                   <Stack.Screen name="feedback" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
+                  <Stack.Screen name="admin" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
                 </Stack>
                 </View>
                 {/* 安卓上有新版本时弹框，一天最多一次 */}

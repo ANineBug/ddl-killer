@@ -35,6 +35,8 @@ export type Course = {
   serverClassId?: number;
   // 手动搜索加入的班（不是教务导入的）
   manual?: boolean;
+  // 换设备登录后从服务器恢复出来的课（本机没导入过）。之后在本机重新导入同一个班，就用导入的那份替换它
+  restored?: boolean;
   // 课表色块用第几种颜色
   hue: number;
   // 已加入这个教学班的同学数（服务器给的；只在手机上的课是 0 或 1）
@@ -94,6 +96,8 @@ export type RemoteInfo = {
   remindReady: boolean;
   postponed: boolean;
   uploaderCount: number;
+  // 上传者的账号编号：管理员降级上传者时用
+  uploaderId?: number;
   openProposals: number;
   source: string;
   optional: boolean;

@@ -80,7 +80,7 @@ test/                     测试，按业务场景写的，可以当规则说明
 | POST | `/auth/login` | 所有人 | 登录 `{ email, password }`，返回凭证。同一邮箱 15 分钟错 10 次、同一 IP 错 30 次先锁住 |
 | POST | `/auth/reset` | 所有人 | 找回密码 `{ email, code, password }`，返回新凭证；别的设备全部登出 |
 | POST | `/auth/logout` | 登录 | 退出 |
-| GET / PATCH | `/me` | 登录 | 我的信息和加入的班 / 改昵称 |
+| GET / PATCH | `/me` | 登录 | 我的信息：加入的每个班（带完整上课时间，换设备登录时 app 用它恢复课表）、`isAdmin`、`termStarts`（每学期第一周的周一）/ 改昵称、邮件提醒、`termStarts` |
 | POST | `/feedback` | 登录 | 意见反馈（问题 / 建议 / 其他），每人每天最多 5 条 |
 | POST | `/me/import` | 登录 | 导入教务课表 `{ term, courses }` |
 | PUT / DELETE | `/me/avatar` | 登录 | 上传头像（请求体就是图片，JPG/PNG/WebP，最大 2MB）/ 删掉头像 |
@@ -108,7 +108,8 @@ test/                     测试，按业务场景写的，可以当规则说明
 | GET / POST | `/classes/:id/messages` | 班里的人 | 聊天：`?after=` 拿新消息、`?before=` 翻历史 / 发消息 `{ text, homeworkId? }` |
 | GET / POST | `/lobby/messages` | 登录 | 总聊天室：全校登录的同学都能看、能发，只有文字，不显示档位；被降级的账号只能看 |
 | DELETE | `/admin/messages/:id`、`/admin/homework/:id` | 管理员 | 删消息、删作业 |
-| POST | `/admin/users/:id/demote` | 管理员 | 降级账号 `{ demoted }` |
+| POST | `/admin/users/:id/demote` | 管理员 | 降级账号 `{ demoted }`（false 是恢复） |
+| GET | `/admin/users` | 管理员 | 被降级的账号列表 |
 
 第一个管理员要在数据库里手动设：`update users set is_admin = true where email = '你的邮箱';`
 

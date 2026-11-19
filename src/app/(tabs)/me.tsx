@@ -247,6 +247,15 @@ export default function MeScreen() {
           )}
         </Section>
 
+        {/* 只有管理员看得到 */}
+        {online.isAdmin && (
+          <Section title="管理">
+            <Card>
+              <NavRow label="被降级的账号" onPress={() => router.push('/admin')} />
+            </Card>
+          </Section>
+        )}
+
         <Section title="更多">
           <Card>
             <NavRow label="每节课几点上课" onPress={() => router.push('/class-times')} />

@@ -7,6 +7,7 @@ import type { RemoteDetail } from '@/api/types';
 import { haptic } from '@/components/haptic';
 import { HomeworkCommunity } from '@/components/HomeworkCommunity';
 import { ReactionIcon } from '@/components/ReactionIcon';
+import { AdminSheet, type AdminAction } from '@/components/AdminSheet';
 import { AttachmentList } from '@/components/Attachments';
 import { ReminderCard } from '@/components/ReminderCard';
 import { useToast } from '@/components/Toast';
@@ -43,6 +44,7 @@ export default function HomeworkDetail() {
   // 服务器上的作业：打开时拉一次详情（提议、改动记录）。作业改了版本，或者自己投了票，再拉一次
   const [detail, setDetail] = useState<RemoteDetail | null>(null);
   const [tick, setTick] = useState(0);
+  const [adminOpen, setAdminOpen] = useState(false);
   const remoteId = item?.remote?.id;
   const version = item?.remote?.version;
   useEffect(() => {
@@ -86,6 +88,31 @@ export default function HomeworkDetail() {
   const canEdit = !!item.mine && state !== 'merged';
   const canDelete = !!item.mine && (!item.remote || state === 'pending');
   const canReport = !!item.remote && state !== 'closed' && state !== 'cancelled' && state !== 'merged' && !canDelete;
+
+  // 管理员：删掉这条作业（所有人都看不到）、把上传的人降为新同学
+  const adminActions: AdminAction[] = item.remote
+    ? [
+        {
+          label: '删除这条作业',
+          confirm: `删掉「${item.title}」，班里所有人都看不到了，app 里没法恢复。只用来处理乱传、广告这类作业；传错了更适合让同学点「有问题」纠正。`,
+          run: async () => {
+            await online.adminDeleteHomework(item);
+            closeModal();
+          },
+          done: '作业已删除',
+        },
+        ...(item.remote.uploaderId && item.remote.uploaderId !== online.account?.user.id
+          ? [
+              {
+                label: `把上传者「${item.uploader}」降为新同学`,
+                confirm: '降级以后：在所有班里都按新同学算（确认和投票不计数、每天最多传 3 条），也不能在总聊天室发言。可以在「我的 → 管理 → 被降级的账号」里恢复。',
+                run: () => online.adminDemote(item.remote!.uploaderId!, true),
+                done: `已把「${item.uploader}」降为新同学`,
+              },
+            ]
+          : []),
+      ]
+    : [];
 
   function remove() {
     if (!item) return;
@@ -232,6 +259,7 @@ export default function HomeworkDetail() {
             }
           />
         )}
+        {online.isAdmin && item.remote && <Action icon="shield-outline" label="管理" danger onPress={() => setAdminOpen(true)} />}
         <Action
           icon={item.ignored ? 'eye-outline' : 'eye-off-outline'}
           label={item.ignored ? '和我有关' : '与我无关'}
@@ -246,6 +274,7 @@ export default function HomeworkDetail() {
       </View>
 
       {item.remote && <HomeworkCommunity item={item} detail={detail} reload={() => setTick((t) => t + 1)} />}
+      <AdminSheet visible={adminOpen} onClose={() => setAdminOpen(false)} title="管理这条作业" actions={adminActions} />
     </ModalScreen>
   );
 }
