@@ -4,7 +4,7 @@ import { StyleSheet, View } from 'react-native';
 
 import { haptic } from '@/components/haptic';
 import { Card, Chip, Press, Txt } from '@/components/ui';
-import { dayDiff, formatDue, isoWeekday, weekdayNames } from '@/data/format';
+import { dayDiff, formatDue, isoWeekday, isTbd, weekdayNames } from '@/data/format';
 import { useStore } from '@/data/store';
 import { Homework, Reminder } from '@/data/types';
 import { useTheme } from '@/theme/useTheme';
@@ -39,6 +39,8 @@ export function ReminderCard({ item }: { item: Homework }) {
   const [time, setTime] = useState('21:00');
 
   const now = Date.now();
+  // 截止时间待定：系统里用 2099 年占位，不能拿它算提醒时间。先只能选「前几天 / 前几小时」，定下来以后照这个提醒
+  const tbd = isTbd(item.due);
   const custom = item.reminders !== undefined;
   const list = item.reminders ?? defaultReminders(settings);
   const hasBefore = (m: number) => list.some((r) => r.kind === 'before' && r.minutes === m);
@@ -141,7 +143,7 @@ export function ReminderCard({ item }: { item: Homework }) {
             <Ionicons name="close" size={13} color={theme.accent} style={{ marginLeft: 4 }} />
           </Press>
         ))}
-        {!picking && (
+        {!picking && !tbd && (
           <Press onPress={openPicker} style={[styles.addChip, { borderColor: theme.line }]}>
             <Ionicons name="add" size={14} color={theme.sub} />
             <Txt variant="sub" tone="sub" style={{ marginLeft: 2 }}>
@@ -200,7 +202,7 @@ export function ReminderCard({ item }: { item: Homework }) {
       )}
 
       <Txt variant="caption" tone="faint" style={{ marginTop: 12 }}>
-        {upcoming ? `下一次提醒：${formatDue(upcoming)}` : '没有待发的提醒'}
+        {tbd ? '截止时间待定，定下来以后按这里的设置提醒' : upcoming ? `下一次提醒：${formatDue(upcoming)}` : '没有待发的提醒'}
         {custom ? '' : ' · 跟随默认设置'}
       </Txt>
     </Card>
