@@ -110,6 +110,7 @@ test/                     测试，按业务场景写的，可以当规则说明
 | DELETE | `/admin/messages/:id`、`/admin/homework/:id` | 管理员 | 删消息、删作业 |
 | POST | `/admin/users/:id/demote` | 管理员 | 降级账号 `{ demoted }`（false 是恢复） |
 | GET | `/admin/users` | 管理员 | 被降级的账号列表 |
+| GET / POST | `/me/marks` | 登录 | 我对作业的个人状态（完成、与我无关、归档、自己设的提醒）/ 存一批 `{ marks: [...] }`，每条带设备上修改的时间，服务器上更新的不会被旧的覆盖 |
 
 第一个管理员要在数据库里手动设：`update users set is_admin = true where email = '你的邮箱';`
 

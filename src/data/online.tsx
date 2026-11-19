@@ -5,13 +5,46 @@ import { api, ApiError } from '@/api/client';
 import type { BoardRow, ChatMessage, GlobalBoard, Me, ProposalKind, RemoteAttachment, RemoteClass, RemoteDetail, RemoteHomework, UserRef } from '@/api/types';
 
 import { courseForServer, courseFromClass, fromRemote, localHomeworkId } from './remote';
-import { useStore } from './store';
-import type { Course, Homework } from './types';
+import { type ServerMark, useStore } from './store';
+import type { Course, Homework, Reminder } from './types';
+
+// 服务器给的「我的状态」：时间是文字，变回日期
+type RawMark = Omit<ServerMark, 'doneAt' | 'updatedAt' | 'reminders'> & {
+  doneAt: string | null;
+  updatedAt: string;
+  reminders: ({ kind: 'before'; minutes: number } | { kind: 'at'; at: string })[] | null;
+};
+const parseMark = (m: RawMark): ServerMark => ({
+  ...m,
+  doneAt: m.doneAt ? new Date(m.doneAt) : null,
+  updatedAt: new Date(m.updatedAt),
+  reminders: m.reminders ? m.reminders.map((r): Reminder => (r.kind === 'at' ? { kind: 'at', at: new Date(r.at) } : r)) : null,
+});
+
+// 本机改了还没存到服务器的「我的状态」→ 接口要的样子
+function pendingMarks(homework: Homework[]) {
+  return homework
+    .filter((h) => h.remote && h.markPending && h.markedAt)
+    .map((h) => ({
+      localId: h.id,
+      at: h.markedAt!.getTime(),
+      body: {
+        homeworkId: h.remote!.id,
+        done: h.done,
+        doneAt: h.doneAt ? h.doneAt.toISOString() : null,
+        ignored: !!h.ignored,
+        archived: h.archived ?? null,
+        reminders: h.reminders ? h.reminders.map((r) => (r.kind === 'at' ? { kind: 'at', at: r.at.toISOString() } : r)) : null,
+        updatedAt: h.markedAt!.toISOString(),
+      },
+    }));
+}
 
 // 所有要连服务器的操作都在这里。界面只管调用，出错时抛 ApiError，message 可以直接给用户看
 
 export function useOnline() {
-  const { account, setAccount, linkCourses, replaceRemote, upsertRemote, addJoinedCourse, removeHomework, courses, timetable, setTimetable, setProfile } = useStore();
+  const { account, setAccount, linkCourses, replaceRemote, upsertRemote, addJoinedCourse, removeHomework, courses, timetable, setTimetable, setProfile, homework, applyMarks, markSaved, clearRemoteMarks } =
+    useStore();
 
   // 1. 课表 → 教学班。登录了就是"导入并加入"，游客只查对应哪些已有的班
   const link = useCallback(
@@ -52,8 +85,26 @@ export function useOnline() {
         linked.map((c) => c.id),
         items,
       );
+      // 登录了就把「我的状态」（完成、与我无关、归档、提醒）也对一遍
+      if (account) {
+        const res = await api<{ marks: RawMark[] }>('/me/marks');
+        applyMarks(res.marks.map(parseMark));
+      }
     },
-    [replaceRemote],
+    [replaceRemote, account, applyMarks],
+  );
+
+  // 把本机改了还没存上的「我的状态」存到服务器，一次最多 300 条
+  const pushMarks = useCallback(
+    async (list: Homework[]) => {
+      const pending = pendingMarks(list);
+      for (let i = 0; i < pending.length; i += 300) {
+        const chunk = pending.slice(i, i + 300);
+        await api('/me/marks', { method: 'POST', body: { marks: chunk.map((p) => p.body) } });
+        markSaved(Object.fromEntries(chunk.map((p) => [p.localId, p.at])));
+      }
+    },
+    [markSaved],
   );
 
   const refresh = useCallback(async () => {
@@ -105,9 +156,13 @@ export function useOnline() {
   );
 
   const logout = useCallback(async () => {
+    // 先把还没存上的「我的状态」存到账号上，再退出；退出后本机清掉，免得下一个登录的人带上
+    // 没网存不上的就先留在本机，下次登录再存，不然会丢
+    const saved = await pushMarks(homework).then(() => true, () => false);
     await api('/auth/logout', { method: 'POST' }).catch(() => {});
     setAccount(null);
-  }, [setAccount]);
+    if (saved) clearRemoteMarks();
+  }, [setAccount, pushMarks, homework, clearRemoteMarks]);
 
   // 意见反馈：直接发给开发者，带上版本号和系统，方便排查
   const feedback = useCallback(
@@ -340,7 +395,7 @@ export function useOnline() {
     [account, addJoinedCourse, sync, timetable.term, setTimetable],
   );
 
-  return { loggedIn: !!account, account, link, sync, refresh, requestCode, login, register, resetPassword, logout, rename, feedback, me, saveTermStarts, isAdmin: !!account?.admin, upload, edit, remove, attach, detach, reload, react, detail, propose, vote, adopt, withdraw, voteDuplicate, messages, send, lobbyMessages, lobbySend, adminDeleteMessage, adminDeleteHomework, adminDemote, adminDemotedUsers, classBoard, globalBoard, setAvatar, leave, search, join };
+  return { loggedIn: !!account, account, link, sync, refresh, requestCode, login, register, resetPassword, logout, rename, feedback, pushMarks, me, saveTermStarts, isAdmin: !!account?.admin, upload, edit, remove, attach, detach, reload, react, detail, propose, vote, adopt, withdraw, voteDuplicate, messages, send, lobbyMessages, lobbySend, adminDeleteMessage, adminDeleteHomework, adminDemote, adminDemotedUsers, classBoard, globalBoard, setAvatar, leave, search, join };
 }
 
 export { ApiError, localHomeworkId };
@@ -352,7 +407,7 @@ function restoredCourses(me: Me): Course[] {
 }
 
 export function OnlineSync() {
-  const { courses, timetable, account, restoreCourses, setTimetable, setAccount } = useStore();
+  const { courses, timetable, account, restoreCourses, setTimetable, setAccount, homework } = useStore();
   const online = useOnline();
   const ref = useRef(online);
   ref.current = online;
@@ -406,6 +461,19 @@ export function OnlineSync() {
     run().catch(() => {});
   }, [token, unlinked, timetable.term]);
 
+  // 打勾、与我无关、归档、改提醒：停手 1 秒后存到账号上。没网存不上的，下次有变化或回到前台时再存
+  const pendingKey = homework
+    .filter((h) => h.remote && h.markPending)
+    .map((h) => `${h.id}@${h.markedAt?.getTime()}`)
+    .join(',');
+  const homeworkRef = useRef(homework);
+  homeworkRef.current = homework;
+  useEffect(() => {
+    if (!token || !pendingKey) return;
+    const t = setTimeout(() => ref.current.pushMarks(homeworkRef.current).catch(() => {}), 1000);
+    return () => clearTimeout(t);
+  }, [pendingKey, token]);
+
   // 本机改了某学期的第一周：存到账号上，别的设备登录也能用
   const startsKey = JSON.stringify(timetable.starts);
   useEffect(() => {
@@ -416,7 +484,10 @@ export function OnlineSync() {
 
   useEffect(() => {
     const sub = AppState.addEventListener('change', (s) => {
-      if (s === 'active') ref.current.sync(state.current.courses).catch(() => {});
+      if (s === 'active') {
+        ref.current.sync(state.current.courses).catch(() => {});
+        ref.current.pushMarks(homeworkRef.current).catch(() => {});
+      }
     });
     return () => sub.remove();
   }, []);

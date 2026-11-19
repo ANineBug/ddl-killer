@@ -6,6 +6,7 @@ import type { UserRef } from '@/api/types';
 
 import { Course, Homework, Profile, ReactionKey, Reminder, Settings, TimetableSettings } from './types';
 import { isArchived } from './archive';
+import { mergeMark, type ServerMark } from './marks';
 import { dropDemo } from './legacy';
 import { mergeImportedCourses, migrateCourse } from './schedule';
 import { createPersistence } from './persistence';
@@ -15,6 +16,8 @@ export type NewCourse = Omit<Course, 'id' | 'hue' | 'members'>;
 
 // 登录后的账号：凭证和服务器上的我
 // admin：这个账号是不是管理员，登录后从服务器拿，决定显不显示管理按钮
+export type { ServerMark };
+
 export type Account = { token: string; user: UserRef; admin?: boolean };
 
 type StoreValue = {
@@ -29,6 +32,9 @@ type StoreValue = {
   // 手动加入教学班后，把这门课加进课表
   addJoinedCourse: (c: Course) => void;
   restoreCourses: (list: Course[]) => void;
+  applyMarks: (marks: ServerMark[]) => void;
+  markSaved: (saved: Record<string, number>) => void;
+  clearRemoteMarks: () => void;
   courses: Course[];
   homework: Homework[];
   profile: Profile;
@@ -84,7 +90,12 @@ const localOnly = (h: Homework) => ({
   dupVote: h.dupVote,
   ignored: h.ignored,
   archived: h.archived,
+  markedAt: h.markedAt,
+  markPending: h.markPending,
 });
+
+// 改了「我的状态」：服务器上的作业记下时间，等着存到服务器
+const touched = (h: Homework): Homework => (h.remote ? { ...h, markedAt: new Date(), markPending: true } : h);
 
 let seq = 0;
 const newId = (prefix: string) => `${prefix}-${Date.now()}-${seq++}`;
@@ -192,6 +203,27 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
+  // 从服务器拿到「我的状态」：服务器的更新就用服务器的；本机改了还没存上、而且改得更晚的留着本机的。
+  // 服务器上还没有、本机却有状态的（老版本时打的勾），标成待上传
+  const applyMarks = useCallback((marks: ServerMark[]) => {
+    const byId = new Map(marks.map((m) => [m.homeworkId, m]));
+    setHomework((list) => list.map((h) => (h.remote ? mergeMark(h, byId.get(h.remote.id)) : h)));
+  }, []);
+
+  // 存到服务器了：只清掉存的那一刻以后没再改过的
+  const markSaved = useCallback((saved: Record<string, number>) => {
+    setHomework((list) => list.map((h) => (h.id in saved && h.markedAt?.getTime() === saved[h.id] ? { ...h, markPending: false } : h)));
+  }, []);
+
+  // 退出登录：服务器上作业的「我的状态」已经存在账号上，本机清掉，免得下一个登录的人带上
+  const clearRemoteMarks = useCallback(() => {
+    setHomework((list) =>
+      list.map((h) =>
+        h.remote ? { ...h, done: false, doneAt: undefined, ignored: undefined, archived: undefined, reminders: undefined, markedAt: undefined, markPending: undefined } : h,
+      ),
+    );
+  }, []);
+
   const addJoinedCourse = useCallback((c: Course) => {
     setCourses((list) => (list.some((x) => x.serverClassId === c.serverClassId) ? list : [...list, { ...c, hue: list.length % 5 }]));
   }, []);
@@ -199,16 +231,16 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   // 打勾记下时间；取消完成就清掉时间，也从归档里拿出来（回到首页待完成）
   const toggleDone = useCallback((id: string) => {
     setHomework((list) =>
-      list.map((h) => (h.id !== id ? h : h.done ? { ...h, done: false, doneAt: undefined, archived: undefined } : { ...h, done: true, doneAt: new Date() })),
+      list.map((h) => (h.id !== id ? h : touched(h.done ? { ...h, done: false, doneAt: undefined, archived: undefined } : { ...h, done: true, doneAt: new Date() }))),
     );
   }, []);
 
   const toggleIgnored = useCallback((id: string) => {
-    setHomework((list) => list.map((h) => (h.id !== id ? h : h.ignored ? { ...h, ignored: false, archived: h.done ? h.archived : undefined } : { ...h, ignored: true })));
+    setHomework((list) => list.map((h) => (h.id !== id ? h : touched(h.ignored ? { ...h, ignored: false, archived: h.done ? h.archived : undefined } : { ...h, ignored: true }))));
   }, []);
 
   const setArchived = useCallback((changes: Record<string, boolean | undefined>) => {
-    setHomework((list) => list.map((h) => (h.id in changes ? { ...h, archived: changes[h.id] } : h)));
+    setHomework((list) => list.map((h) => (h.id in changes ? touched({ ...h, archived: changes[h.id] }) : h)));
   }, []);
 
   const toggleReaction = useCallback((id: string, key: ReactionKey) => {
@@ -231,7 +263,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const setReminders = useCallback((id: string, reminders: Reminder[] | undefined) => {
-    setHomework((list) => list.map((h) => (h.id === id ? { ...h, reminders } : h)));
+    setHomework((list) => list.map((h) => (h.id === id ? touched({ ...h, reminders }) : h)));
   }, []);
 
   const addHomework = useCallback(
@@ -352,6 +384,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       upsertRemote,
       addJoinedCourse,
       restoreCourses,
+      applyMarks,
+      markSaved,
+      clearRemoteMarks,
       courses,
       homework,
       profile,
@@ -385,6 +420,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       upsertRemote,
       addJoinedCourse,
       restoreCourses,
+      applyMarks,
+      markSaved,
+      clearRemoteMarks,
       courses,
       homework,
       profile,

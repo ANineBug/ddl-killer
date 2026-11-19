@@ -71,14 +71,18 @@ export type Homework = {
   possibleDuplicates?: string[];
   // 我对"是不是重复"投的票：true 是重复，false 不是，没投过为空
   dupVote?: boolean;
-  // 「与我无关」：比如选了别的题目的小组，这条不再出现在待完成里，也不提醒。只存在手机上
+  // 「与我无关」：比如选了别的题目的小组，这条不再出现在待完成里，也不提醒。服务器上的作业跟着账号同步（见 markedAt）
   ignored?: boolean;
-  // 什么时候打的勾。只存在手机上，「完成记录」里算按时率、每天完成几条用
+  // 什么时候打的勾。「完成记录」里算按时率、每天完成几条用
   doneAt?: Date;
   // 归档：true 自己归档了；false 从归档里移回来了，不再自动归档；没设置就按规则自动（截止过了一周）
   archived?: boolean;
   // 课被删掉以后，归档里的作业还要显示是哪门课，删课时把课名记下来
   courseName?: string;
+  // 完成、与我无关、归档、自己设的提醒，这几样「我的状态」跟着账号存在服务器上：
+  // markedAt 是最后一次改的时间（两台设备都改过的，以后改的为准），markPending 是改了还没存到服务器
+  markedAt?: Date;
+  markPending?: boolean;
   // 从服务器同步来的作业才有：服务器上的编号、状态等。没有就是只存在这台手机上的
   remote?: RemoteInfo;
 };
